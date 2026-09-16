@@ -18,11 +18,7 @@ public sealed record CharacterInfo(string Name, string Path, int IdleCount, int 
 /// <summary>기본 제공 캐릭터와 사용자가 넣어둔 캐릭터를 찾아준다.</summary>
 public static class CharacterLibrary
 {
-    /// <summary>실행 파일 옆에 따라오는 기본 캐릭터들.</summary>
-    public static string BundledRoot { get; } =
-        Path.Combine(AppContext.BaseDirectory, "assets", "characters");
-
-    /// <summary>사용자가 캐릭터 폴더를 복사해 넣는 곳.</summary>
+    /// <summary>캐릭터가 모여 사는 곳. 기본 캐릭터도 첫 실행 때 여기로 풀린다.</summary>
     public static string UserRoot { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "BeatIt",
@@ -30,26 +26,21 @@ public static class CharacterLibrary
 
     public static string? DefaultPath => Scan().FirstOrDefault()?.Path;
 
-    /// <summary>기본 폴더와 사용자 폴더를 훑어 쓸 수 있는 캐릭터만 돌려준다.</summary>
+    /// <summary>캐릭터 폴더를 훑어 쓸 수 있는 것만 돌려준다.</summary>
     public static IReadOnlyList<CharacterInfo> Scan()
     {
-        List<CharacterInfo> found = [];
-        HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
-
-        foreach (string root in (string[])[BundledRoot, UserRoot])
+        if (!Directory.Exists(UserRoot))
         {
-            if (!Directory.Exists(root))
-            {
-                continue;
-            }
+            return [];
+        }
 
-            foreach (string folder in Directory.EnumerateDirectories(root).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+        List<CharacterInfo> found = [];
+        foreach (string folder in Directory.EnumerateDirectories(UserRoot).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+        {
+            CharacterInfo? info = Describe(folder);
+            if (info is not null)
             {
-                CharacterInfo? info = Describe(folder);
-                if (info is not null && seen.Add(info.Path))
-                {
-                    found.Add(info);
-                }
+                found.Add(info);
             }
         }
 

@@ -4,11 +4,21 @@
 
 ## 실행
 
+개발 중에는:
+
 ```bash
 dotnet run --project src/BeatIt
 ```
 
-빌드 결과물은 `src/BeatIt/bin/Debug/net10.0-windows/BeatIt.exe`.
+배포용 exe 를 만들려면:
+
+```powershell
+.\publish.ps1
+```
+
+`dist\BeatIt.exe` 하나만 나온다(약 2MB). 기본 캐릭터까지 exe 안에 들어 있어서 그 파일 하나만 건네면 된다.
+**받는 쪽에 [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) 이 필요하다.** 런타임까지 통째로 넣고 싶으면
+`publish.ps1` 의 `--self-contained false` 를 `true` 로 바꾸면 되는데, 70MB 넘게 커진다.
 
 ## 조작
 
@@ -36,9 +46,9 @@ dotnet run --project src/BeatIt
 - `move`나 `beat` 폴더가 없으면 `idle` 이미지로 대신한다.
 - 하위 폴더 없이 폴더에 이미지만 넣어도 된다. 그 이미지들이 `idle`이 되고 나머지 상태도 그걸 쓴다. **단일 이미지 캐릭터가 이 경우다.**
 
-### 기본 제공
+모든 캐릭터는 `%AppData%\BeatIt\characters\` 에 산다. 기본 캐릭터도 첫 실행 때 여기로 풀린다.
 
-| 이름 | 구성 |
+| 기본 캐릭터 | 구성 |
 |---|---|
 | `clawd` | idle 5장 / move 5장 / beat 10장 |
 | `codex` | 단일 이미지 |
@@ -48,11 +58,12 @@ dotnet run --project src/BeatIt
 
 우클릭 → **설정**에서 두 가지 방법이 있다.
 
-1. **폴더 열기** 를 눌러 열리는 `%AppData%\BeatIt\characters\` 안에 캐릭터 폴더를 통째로 넣는다. 설정 창을 다시 열면 목록에 뜬다.
+1. **폴더 열기** 로 `%AppData%\BeatIt\characters\` 를 열고 캐릭터 폴더를 통째로 넣는다. 설정 창을 다시 열면 목록에 뜬다.
 2. **폴더 추가...** 로 아무 위치의 폴더나 직접 지정한다.
 
-같은 화면에서 위젯 가로 크기, 콤보 유지 시간(이 시간 안에 다시 때려야 콤보가 이어진다), idle 교체 간격의 최소/최대도 조절한다.
+기본 캐릭터가 마음에 안 들면 그냥 지우면 된다. 버전마다 한 번만 풀기 때문에 다시 살아나지 않는다.
 
+같은 화면에서 위젯 가로 크기, 콤보 유지 시간(이 시간 안에 다시 때려야 콤보가 이어진다), idle 교체 간격의 최소/최대도 조절한다.
 설정은 `%AppData%\BeatIt\settings.json` 에 저장된다.
 
 ## 구조
@@ -61,17 +72,21 @@ dotnet run --project src/BeatIt
 src/BeatIt/
   Core/       타격·드래그 애니메이션, 콤보, 캐릭터/스프라이트, GIF 재생
   Models/     저장되는 설정 모델
-  Services/   설정 파일 입출력, 캐릭터 폴더 탐색
+  Services/   설정 파일 입출력, 캐릭터 폴더 탐색, 내장 캐릭터 추출
   Views/      위젯 창, 설정 창
   Controls/   콤보 표시
-  assets/characters/   기본 제공 캐릭터
+  assets/     기본 제공 캐릭터 원본과 exe 아이콘
+tools/        아이콘 생성 스크립트
+publish.ps1   배포용 단일 exe 빌드
 ```
 
 - 애니메이션은 Storyboard 대신 감쇠 스프링(`Core/Spring.cs`)으로 돌린다. 타격을 임펄스로 밀어넣기 때문에 연타하면 흔들림이 끊기지 않고 누적된다.
 - GIF는 외부 패키지 없이 `GifBitmapDecoder` 로 프레임을 직접 합성한다(`Core/AnimatedGifPlayer.cs`). 부분 갱신 프레임과 disposal 규칙을 처리한다.
 - 어떤 그림을 그릴지는 `ISpriteSource` 뒤에 있다. 창은 매 프레임 "지금 idle인지 move인지"만 넘기고, 이미지를 고르는 규칙은 `CharacterSpriteSource` 안에 있다.
+- 기본 캐릭터는 빌드할 때 `assets/characters` 를 zip 으로 묶어 리소스로 넣는다(`PackCharacters` 타깃). 파일을 하나씩 리소스로 넣으면 리소스 이름에서 원래 폴더 구조를 되살릴 수 없다.
 
 ## 알아둘 점
 
+- `.ps1` 파일은 **UTF-8 BOM** 으로 저장해야 한다. Windows PowerShell 5.1 은 BOM 없는 파일을 cp949 로 읽어서, 한국어 주석이 뒤따르는 코드 줄을 먹어버린다.
 - 창 크기는 현재 이미지의 비율로 잡는다. 한 캐릭터 안에 비율이 다른 이미지를 섞으면 나머지는 그 상자 안에 `Uniform` 으로 맞춰 들어간다.
 - 늘어나고 흔들려도 잘리지 않게 창을 이미지보다 넉넉히 잡아두었다. 남는 여백은 클릭이 통과한다.

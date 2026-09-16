@@ -6,11 +6,31 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>assets\beatit.ico</ApplicationIcon>
+    <AssemblyTitle>BeatIt</AssemblyTitle>
+    <Product>BeatIt</Product>
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- 기본 제공 캐릭터. 폴더째로 출력 디렉터리에 따라간다. -->
-    <Content Include="assets\characters\**\*.*" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
+  <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+    <!-- exe 하나만 건네도 돌아가도록. 기본 캐릭터는 리소스로 들어가 첫 실행 때 풀린다. -->
+    <SelfContained>false</SelfContained>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <!--
+    기본 캐릭터 폴더를 통째로 zip 으로 묶어 exe 안에 넣는다.
+    파일을 하나씩 리소스로 넣으면 리소스 이름에서 원래 폴더 구조를 되살릴 수 없다.
+  -->
+  <Target Name="PackCharacters" BeforeTargets="PrepareForBuild">
+    <!-- 이 시점엔 obj 하위 폴더가 아직 없을 수 있다. -->
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)\assets\characters"
+                  DestinationFile="$(IntermediateOutputPath)characters.zip"
+                  Overwrite="true" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)characters.zip" LogicalName="BeatIt.characters.zip" />
+    </ItemGroup>
+  </Target>
 
 </Project>

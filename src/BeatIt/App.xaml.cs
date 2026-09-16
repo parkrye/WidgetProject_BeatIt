@@ -11,6 +11,9 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // 기본 캐릭터는 exe 안에 들어 있다. 설정을 읽기 전에 먼저 풀어놔야 목록에 잡힌다.
+        CharacterAssets.EnsureExtracted();
+
         SettingsService settingsService = new();
         AppSettings settings = await settingsService.LoadAsync();
 
