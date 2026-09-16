@@ -25,4 +25,7 @@ public interface ISpriteSource : IDisposable
 
     /// <summary>프레임마다 호출한다. 시간이 흐르고 상태가 바뀐 걸 알린다.</summary>
     void Update(double deltaSeconds, SpriteState state);
+
+    /// <summary>대기 중 그림을 갈아 끼우는 간격. 설정에서 바꾸면 다시 불러온다.</summary>
+    void SetIdleInterval(double minSeconds, double maxSeconds);
 }

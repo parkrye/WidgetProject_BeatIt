@@ -9,12 +9,12 @@
     <ApplicationIcon>assets\beatit.ico</ApplicationIcon>
     <AssemblyTitle>BeatIt</AssemblyTitle>
     <Product>BeatIt</Product>
-    <Version>1.0.0</Version>
+    <!-- 올리면 기본 캐릭터/테마를 사용자 폴더에 다시 풀어준다. 새 에셋을 넣었으면 같이 올린다. -->
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
-    <!-- exe 하나만 건네도 돌아가도록. 기본 캐릭터는 리소스로 들어가 첫 실행 때 풀린다. -->
-    <SelfContained>false</SelfContained>
+    <!-- 런타임 포함 여부는 publish.ps1 이 정한다. 여기서 정하면 명령줄 값과 엇갈린다. -->
     <DebugType>none</DebugType>
   </PropertyGroup>
 
@@ -28,8 +28,12 @@
     <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)\assets\characters"
                   DestinationFile="$(IntermediateOutputPath)characters.zip"
                   Overwrite="true" />
+    <ZipDirectory SourceDirectory="$(MSBuildProjectDirectory)\assets\themes"
+                  DestinationFile="$(IntermediateOutputPath)themes.zip"
+                  Overwrite="true" />
     <ItemGroup>
       <EmbeddedResource Include="$(IntermediateOutputPath)characters.zip" LogicalName="BeatIt.characters.zip" />
+      <EmbeddedResource Include="$(IntermediateOutputPath)themes.zip" LogicalName="BeatIt.themes.zip" />
     </ItemGroup>
   </Target>
 

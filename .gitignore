@@ -3,4 +3,4 @@ obj/
 .vs/
 *.user
 *.suo
-dist/
+artifacts/

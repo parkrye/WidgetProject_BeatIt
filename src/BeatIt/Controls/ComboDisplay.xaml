@@ -4,7 +4,10 @@
              IsHitTestVisible="False"
              Opacity="0">
     <UserControl.RenderTransform>
-        <ScaleTransform x:Name="PopScale" ScaleX="1" ScaleY="1" />
+        <TransformGroup>
+            <ScaleTransform x:Name="PopScale" ScaleX="1" ScaleY="1" />
+            <TranslateTransform x:Name="Offset" X="0" Y="0" />
+        </TransformGroup>
     </UserControl.RenderTransform>
     <UserControl.RenderTransformOrigin>
         <Point X="0.5" Y="0.5" />
@@ -14,20 +17,33 @@
         <StackPanel.Effect>
             <DropShadowEffect BlurRadius="10" ShadowDepth="0" Color="#000000" Opacity="0.95" />
         </StackPanel.Effect>
-        <TextBlock x:Name="CountText"
-                   Text="0"
-                   FontFamily="Segoe UI Black, Arial Black"
-                   FontSize="52"
-                   FontWeight="Black"
-                   Foreground="White"
+
+        <Grid>
+            <StackPanel x:Name="DigitsPanel"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Center"
+                        Visibility="Collapsed" />
+            <TextBlock x:Name="CountText"
+                       Text="0"
+                       FontFamily="Segoe UI Black, Arial Black"
+                       FontSize="52"
+                       FontWeight="Black"
+                       Foreground="White"
+                       HorizontalAlignment="Center" />
+        </Grid>
+
+        <Grid Margin="0,-10,0,0">
+            <Image x:Name="LabelImage"
+                   Stretch="Uniform"
+                   Visibility="Collapsed"
                    HorizontalAlignment="Center" />
-        <TextBlock x:Name="LabelText"
-                   Text="COMBO"
-                   FontFamily="Segoe UI Black, Arial Black"
-                   FontSize="16"
-                   FontWeight="Black"
-                   Foreground="White"
-                   HorizontalAlignment="Center"
-                   Margin="0,-10,0,0" />
+            <TextBlock x:Name="LabelText"
+                       Text="COMBO"
+                       FontFamily="Segoe UI Black, Arial Black"
+                       FontSize="16"
+                       FontWeight="Black"
+                       Foreground="White"
+                       HorizontalAlignment="Center" />
+        </Grid>
     </StackPanel>
 </UserControl>
