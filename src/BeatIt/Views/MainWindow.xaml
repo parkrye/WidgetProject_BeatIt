@@ -27,6 +27,10 @@
                     <ContextMenu>
                         <MenuItem Header="설정..." Click="OnOpenSettings" />
                         <Separator />
+                        <MenuItem x:Name="WanderMenuItem"
+                                  Header="돌아다니기"
+                                  IsCheckable="True"
+                                  Click="OnToggleWander" />
                         <MenuItem x:Name="TopmostMenuItem"
                                   Header="항상 위에"
                                   IsCheckable="True"
@@ -41,6 +45,9 @@
                 </Image.ContextMenu>
             </Image>
         </Grid>
+
+        <!-- 타격 이펙트가 잠깐 떴다 사라지는 층. -->
+        <Canvas x:Name="EffectLayer" IsHitTestVisible="False" />
 
         <controls:ComboDisplay x:Name="Combo"
                                HorizontalAlignment="Center"
