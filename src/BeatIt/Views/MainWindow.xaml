@@ -1,0 +1,50 @@
+<Window x:Class="BeatIt.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:BeatIt.Controls"
+        Title="BeatIt"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="{x:Null}"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Width="360"
+        Height="440">
+    <Grid>
+        <!-- 끌고 갈 때 늘어나는 층. 붙잡은 지점이 기준점이 된다. -->
+        <Grid x:Name="DragRoot">
+            <!-- 맞아서 꾸겨지는 층. 바닥을 딛고 눌리도록 기준점은 아래 가운데. -->
+            <Image x:Name="SpriteImage"
+                   RenderTransformOrigin="0.5,1"
+                   Stretch="Uniform"
+                   SnapsToDevicePixels="True"
+                   MouseLeftButtonDown="OnSpriteMouseDown"
+                   MouseMove="OnSpriteMouseMove"
+                   MouseLeftButtonUp="OnSpriteMouseUp"
+                   ContextMenuOpening="OnContextMenuOpening">
+                <Image.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="설정..." Click="OnOpenSettings" />
+                        <Separator />
+                        <MenuItem x:Name="TopmostMenuItem"
+                                  Header="항상 위에"
+                                  IsCheckable="True"
+                                  Click="OnToggleTopmost" />
+                        <MenuItem x:Name="LockMenuItem"
+                                  Header="위치 잠금"
+                                  IsCheckable="True"
+                                  Click="OnToggleLock" />
+                        <Separator />
+                        <MenuItem Header="종료" Click="OnExit" />
+                    </ContextMenu>
+                </Image.ContextMenu>
+            </Image>
+        </Grid>
+
+        <controls:ComboDisplay x:Name="Combo"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Top"
+                               Margin="0,4,0,0" />
+    </Grid>
+</Window>
