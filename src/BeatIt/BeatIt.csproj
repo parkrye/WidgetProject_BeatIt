@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -7,5 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 기본 제공 캐릭터. 폴더째로 출력 디렉터리에 따라간다. -->
+    <Content Include="assets\characters\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

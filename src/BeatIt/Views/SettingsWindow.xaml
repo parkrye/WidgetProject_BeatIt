@@ -3,86 +3,73 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BeatIt 설정"
         Width="520"
-        Height="560"
-        ResizeMode="CanResize"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False">
-    <Grid Margin="16">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <StackPanel Margin="16">
+        <TextBlock Text="캐릭터" FontWeight="Bold" Margin="0,0,0,6" />
 
-        <StackPanel Grid.Row="0">
-            <TextBlock Text="타격 이미지 모드" FontWeight="Bold" Margin="0,0,0,6" />
-            <RadioButton x:Name="SingleModeRadio"
-                         Content="단일 이미지 — 한 장을 꾸겨가며 팬다"
-                         Checked="OnModeChanged"
-                         Margin="0,0,0,4" />
-            <RadioButton x:Name="SequenceModeRadio"
-                         Content="이미지 시퀀스 — 때릴 때마다 다음 장으로 바꾼다 (GIF 가능, 장수 제한 없음)"
-                         Checked="OnModeChanged" />
-        </StackPanel>
-
-        <Grid x:Name="SinglePanel" Grid.Row="1" Margin="0,14,0,0">
+        <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="SinglePathBox" Grid.Column="0" IsReadOnly="True" Padding="4" VerticalContentAlignment="Center" />
-            <Button Grid.Column="1" Content="찾아보기..." Padding="12,4" Margin="8,0,0,0" Click="OnBrowseSingle" />
-            <Button Grid.Column="2" Content="지우기" Padding="12,4" Margin="6,0,0,0" Click="OnClearSingle" />
+            <ComboBox x:Name="CharacterCombo"
+                      Grid.Column="0"
+                      DisplayMemberPath="Name"
+                      SelectionChanged="OnCharacterChanged" />
+            <Button Grid.Column="1" Content="폴더 추가..." Padding="12,4" Margin="8,0,0,0" Click="OnAddCharacter" />
+            <Button Grid.Column="2" Content="폴더 열기" Padding="12,4" Margin="6,0,0,0" Click="OnOpenUserFolder" />
         </Grid>
 
-        <Grid x:Name="SequencePanel" Grid.Row="2" Margin="0,14,0,0">
+        <TextBlock x:Name="SummaryText" Foreground="#555555" Margin="2,6,0,0" />
+
+        <Border Background="#F4F4F6" CornerRadius="4" Padding="10" Margin="0,10,0,0">
+            <TextBlock TextWrapping="Wrap" Foreground="#444444">
+                캐릭터는 폴더 하나다. 안에 <Run FontWeight="Bold">idle</Run> / <Run FontWeight="Bold">move</Run> / <Run FontWeight="Bold">beat</Run> 폴더를 두고 이미지를 넣으면 된다.<LineBreak />
+                대기 중에는 idle 중 하나가 아래 간격으로 랜덤하게 바뀌고, 끌고 갈 때는 move, 맞을 때는 beat 중 하나가 나온다.<LineBreak />
+                장수 제한은 없고 GIF도 섞어 쓸 수 있다. move나 beat 폴더가 없으면 idle 이미지로 대신한다.
+            </TextBlock>
+        </Border>
+
+        <TextBlock Text="감각" FontWeight="Bold" Margin="0,16,0,6" />
+
+        <Grid>
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-
-            <TextBlock Grid.Row="0" Grid.ColumnSpan="2" Text="때리는 순서 (위에서 아래로 순환)" FontWeight="Bold" Margin="0,0,0,6" />
-            <ListBox x:Name="SequenceList" Grid.Row="1" Grid.Column="0" SelectionMode="Extended" />
-            <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,0">
-                <Button Content="추가..." Padding="10,4" Margin="0,0,0,6" Click="OnAddSequence" />
-                <Button Content="제거" Padding="10,4" Margin="0,0,0,6" Click="OnRemoveSequence" />
-                <Button Content="위로" Padding="10,4" Margin="0,0,0,6" Click="OnMoveUp" />
-                <Button Content="아래로" Padding="10,4" Margin="0,0,0,6" Click="OnMoveDown" />
-                <Button Content="전체 삭제" Padding="10,4" Click="OnClearSequence" />
-            </StackPanel>
-        </Grid>
-
-        <Grid Grid.Row="3" Margin="0,16,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Grid.Column="0" Text="위젯 가로 크기" VerticalAlignment="Center" Margin="0,0,10,0" />
             <Slider x:Name="WidthSlider" Grid.Row="0" Grid.Column="1" Minimum="80" Maximum="640" TickFrequency="10" IsSnapToTickEnabled="True" VerticalAlignment="Center" />
-            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ElementName=WidthSlider, Path=Value, StringFormat={}{0:F0} px}" Width="70" TextAlignment="Right" VerticalAlignment="Center" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ElementName=WidthSlider, Path=Value, StringFormat={}{0:F0} px}" Width="76" TextAlignment="Right" VerticalAlignment="Center" />
 
             <TextBlock Grid.Row="1" Grid.Column="0" Text="콤보 유지 시간" VerticalAlignment="Center" Margin="0,10,10,0" />
             <Slider x:Name="ComboSlider" Grid.Row="1" Grid.Column="1" Minimum="300" Maximum="4000" TickFrequency="50" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,10,0,0" />
-            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ElementName=ComboSlider, Path=Value, StringFormat={}{0:F0} ms}" Width="70" TextAlignment="Right" VerticalAlignment="Center" Margin="0,10,0,0" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ElementName=ComboSlider, Path=Value, StringFormat={}{0:F0} ms}" Width="76" TextAlignment="Right" VerticalAlignment="Center" Margin="0,10,0,0" />
+
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="idle 교체 최소" VerticalAlignment="Center" Margin="0,10,10,0" />
+            <Slider x:Name="IdleMinSlider" Grid.Row="2" Grid.Column="1" Minimum="300" Maximum="15000" TickFrequency="100" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,10,0,0" ValueChanged="OnIdleMinChanged" />
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding ElementName=IdleMinSlider, Path=Value, StringFormat={}{0:F0} ms}" Width="76" TextAlignment="Right" VerticalAlignment="Center" Margin="0,10,0,0" />
+
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="idle 교체 최대" VerticalAlignment="Center" Margin="0,10,10,0" />
+            <Slider x:Name="IdleMaxSlider" Grid.Row="3" Grid.Column="1" Minimum="300" Maximum="15000" TickFrequency="100" IsSnapToTickEnabled="True" VerticalAlignment="Center" Margin="0,10,0,0" ValueChanged="OnIdleMaxChanged" />
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding ElementName=IdleMaxSlider, Path=Value, StringFormat={}{0:F0} ms}" Width="76" TextAlignment="Right" VerticalAlignment="Center" Margin="0,10,0,0" />
         </Grid>
 
-        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
             <CheckBox x:Name="TopmostCheck" Content="항상 위에" VerticalAlignment="Center" Margin="0,0,16,0" />
             <Button Content="확인" Width="90" Padding="0,5" IsDefault="True" Click="OnConfirm" />
             <Button Content="취소" Width="90" Padding="0,5" Margin="8,0,0,0" IsCancel="True" />
         </StackPanel>
-    </Grid>
+    </StackPanel>
 </Window>

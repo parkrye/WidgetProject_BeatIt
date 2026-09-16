@@ -1,38 +1,19 @@
 using BeatIt.Models;
+using BeatIt.Services;
 
 namespace BeatIt.Core;
 
-/// <summary>설정을 보고 알맞은 <see cref="ISpriteSource"/> 를 만든다. 쓸 이미지가 없으면 기본 샌드백으로 떨어진다.</summary>
+/// <summary>설정에 적힌 캐릭터를 읽어 <see cref="ISpriteSource"/> 로 만든다. 못 읽으면 기본 캐릭터, 그것도 없으면 샌드백.</summary>
 public static class SpriteSourceFactory
 {
-    public static ISpriteSource Create(AppSettings settings) =>
-        settings.Mode == SpriteMode.Sequence ? CreateSequence(settings) : CreateSingle(settings);
-
-    private static ISpriteSource CreateSingle(AppSettings settings)
+    public static ISpriteSource Create(AppSettings settings)
     {
-        Sprite? sprite = settings.SinglePath is null ? null : Sprite.Load(settings.SinglePath);
-        return new SingleSpriteSource(sprite ?? Fallback());
+        Character character = TryLoad(settings.CharacterPath)
+            ?? TryLoad(CharacterLibrary.DefaultPath)
+            ?? Character.Placeholder();
+
+        return new CharacterSpriteSource(character, settings.IdleMinMs / 1000.0, settings.IdleMaxMs / 1000.0);
     }
 
-    private static ISpriteSource CreateSequence(AppSettings settings)
-    {
-        List<Sprite> sprites = [];
-        foreach (string path in settings.SequencePaths)
-        {
-            Sprite? sprite = Sprite.Load(path);
-            if (sprite is not null)
-            {
-                sprites.Add(sprite);
-            }
-        }
-
-        if (sprites.Count == 0)
-        {
-            return new SingleSpriteSource(Fallback());
-        }
-
-        return new SequenceSpriteSource(sprites);
-    }
-
-    private static Sprite Fallback() => Sprite.FromImage(PlaceholderSprite.Create());
+    private static Character? TryLoad(string? folder) => folder is null ? null : Character.Load(folder);
 }

@@ -1,115 +1,141 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using BeatIt.Models;
+using BeatIt.Services;
 using Microsoft.Win32;
 
 namespace BeatIt.Views;
 
-/// <summary>이미지와 타격 감각을 고르는 설정 창.</summary>
+/// <summary>캐릭터와 타격 감각을 고르는 설정 창.</summary>
 public partial class SettingsWindow : Window
 {
-    private const string ImageFilter =
-        "이미지 (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp|모든 파일 (*.*)|*.*";
-
-    private readonly ObservableCollection<string> _sequence;
+    private readonly ObservableCollection<CharacterInfo> _characters;
+    private readonly string? _defaultPath = CharacterLibrary.DefaultPath;
 
     public SettingsWindow(AppSettings settings)
     {
         InitializeComponent();
 
         Result = settings;
-        _sequence = [.. settings.SequencePaths];
-        SequenceList.ItemsSource = _sequence;
+        _characters = [.. CharacterLibrary.Scan()];
+        CharacterCombo.ItemsSource = _characters;
 
-        SingleModeRadio.IsChecked = settings.Mode == SpriteMode.Single;
-        SequenceModeRadio.IsChecked = settings.Mode == SpriteMode.Sequence;
-        SinglePathBox.Text = settings.SinglePath ?? string.Empty;
         WidthSlider.Value = settings.WidgetWidth;
         ComboSlider.Value = settings.ComboTimeoutMs;
+        IdleMinSlider.Value = settings.IdleMinMs;
+        IdleMaxSlider.Value = settings.IdleMaxMs;
         TopmostCheck.IsChecked = settings.Topmost;
 
-        UpdatePanels();
+        SelectInitialCharacter(settings.CharacterPath);
     }
 
     /// <summary>확인을 눌렀을 때 적용할 설정.</summary>
     public AppSettings Result { get; }
 
-    private void OnModeChanged(object sender, RoutedEventArgs e) => UpdatePanels();
+    private void OnCharacterChanged(object sender, SelectionChangedEventArgs e) =>
+        SummaryText.Text = (CharacterCombo.SelectedItem as CharacterInfo)?.Summary ?? "쓸 수 있는 캐릭터가 없다. 기본 샌드백으로 대신한다.";
 
-    private void OnBrowseSingle(object sender, RoutedEventArgs e)
+    private void OnAddCharacter(object sender, RoutedEventArgs e)
     {
-        OpenFileDialog dialog = new() { Filter = ImageFilter, Title = "때릴 이미지 고르기" };
-        if (dialog.ShowDialog(this) == true)
-        {
-            SinglePathBox.Text = dialog.FileName;
-        }
-    }
-
-    private void OnClearSingle(object sender, RoutedEventArgs e) => SinglePathBox.Text = string.Empty;
-
-    private void OnAddSequence(object sender, RoutedEventArgs e)
-    {
-        OpenFileDialog dialog = new()
-        {
-            Filter = ImageFilter,
-            Title = "타격 이미지 추가 (여러 장 선택 가능)",
-            Multiselect = true,
-        };
-
+        OpenFolderDialog dialog = new() { Title = "캐릭터 폴더 고르기", Multiselect = false };
         if (dialog.ShowDialog(this) != true)
         {
             return;
         }
 
-        foreach (string path in dialog.FileNames.OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+        CharacterInfo? info = CharacterLibrary.Describe(dialog.FolderName);
+        if (info is null)
         {
-            _sequence.Add(path);
-        }
-    }
-
-    private void OnRemoveSequence(object sender, RoutedEventArgs e)
-    {
-        foreach (string path in SequenceList.SelectedItems.Cast<string>().ToList())
-        {
-            _sequence.Remove(path);
-        }
-    }
-
-    private void OnClearSequence(object sender, RoutedEventArgs e) => _sequence.Clear();
-
-    private void OnMoveUp(object sender, RoutedEventArgs e) => Move(-1);
-
-    private void OnMoveDown(object sender, RoutedEventArgs e) => Move(1);
-
-    private void Move(int offset)
-    {
-        int index = SequenceList.SelectedIndex;
-        int target = index + offset;
-        if (index < 0 || target < 0 || target >= _sequence.Count)
-        {
+            MessageBox.Show(
+                this,
+                "그 폴더에서 쓸 이미지를 못 찾았다.\nidle / move / beat 하위 폴더에 이미지를 넣거나, 폴더에 이미지를 바로 넣어야 한다.",
+                "BeatIt",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
             return;
         }
 
-        _sequence.Move(index, target);
-        SequenceList.SelectedIndex = target;
+        CharacterInfo? existing = _characters.FirstOrDefault(c => PathEquals(c.Path, info.Path));
+        if (existing is null)
+        {
+            _characters.Add(info);
+            existing = info;
+        }
+
+        CharacterCombo.SelectedItem = existing;
+    }
+
+    private void OnOpenUserFolder(object sender, RoutedEventArgs e)
+    {
+        CharacterLibrary.EnsureUserRoot();
+        Process.Start(new ProcessStartInfo(CharacterLibrary.UserRoot) { UseShellExecute = true });
+    }
+
+    private void OnIdleMinChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (IdleMaxSlider is not null && IdleMaxSlider.Value < e.NewValue)
+        {
+            IdleMaxSlider.Value = e.NewValue;
+        }
+    }
+
+    private void OnIdleMaxChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (IdleMinSlider is not null && IdleMinSlider.Value > e.NewValue)
+        {
+            IdleMinSlider.Value = e.NewValue;
+        }
     }
 
     private void OnConfirm(object sender, RoutedEventArgs e)
     {
-        Result.Mode = SequenceModeRadio.IsChecked == true ? SpriteMode.Sequence : SpriteMode.Single;
-        Result.SinglePath = string.IsNullOrWhiteSpace(SinglePathBox.Text) ? null : SinglePathBox.Text;
-        Result.SequencePaths = [.. _sequence];
+        string? path = (CharacterCombo.SelectedItem as CharacterInfo)?.Path;
+
+        // 기본 캐릭터는 경로를 비워 저장한다. 앱 폴더가 바뀌어도 따라온다.
+        Result.CharacterPath = path is not null && PathEquals(path, _defaultPath) ? null : path;
         Result.WidgetWidth = WidthSlider.Value;
         Result.ComboTimeoutMs = (int)ComboSlider.Value;
+        Result.IdleMinMs = (int)IdleMinSlider.Value;
+        Result.IdleMaxMs = (int)Math.Max(IdleMaxSlider.Value, IdleMinSlider.Value);
         Result.Topmost = TopmostCheck.IsChecked == true;
         DialogResult = true;
     }
 
-    private void UpdatePanels()
+    private void SelectInitialCharacter(string? path)
     {
-        bool sequence = SequenceModeRadio.IsChecked == true;
-        SequencePanel.Visibility = sequence ? Visibility.Visible : Visibility.Collapsed;
-        SinglePanel.Visibility = sequence ? Visibility.Collapsed : Visibility.Visible;
+        string? target = path ?? _defaultPath;
+        CharacterCombo.SelectedItem = _characters.FirstOrDefault(c => PathEquals(c.Path, target));
+
+        if (CharacterCombo.SelectedItem is not null || target is null)
+        {
+            OnCharacterChanged(this, null!);
+            return;
+        }
+
+        // 목록에 없는 폴더를 쓰고 있었다면(직접 고른 폴더) 그대로 목록에 얹어준다.
+        CharacterInfo? info = CharacterLibrary.Describe(target);
+        if (info is not null)
+        {
+            _characters.Add(info);
+            CharacterCombo.SelectedItem = info;
+        }
+
+        OnCharacterChanged(this, null!);
+    }
+
+    private static bool PathEquals(string? left, string? right)
+    {
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
+        return string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
+            StringComparison.OrdinalIgnoreCase);
     }
 }

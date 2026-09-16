@@ -64,6 +64,7 @@ public partial class MainWindow : Window
 
         _hitAnimator.Update(delta);
         _dragAnimator.Update(delta);
+        _spriteSource.Update(delta, _dragging ? SpriteState.Moving : SpriteState.Idle);
         DragRoot.RenderTransformOrigin = _dragAnimator.Anchor;
 
         if (_comboCounter.ExpireIfTimedOut())

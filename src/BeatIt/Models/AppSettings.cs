@@ -1,31 +1,21 @@
 namespace BeatIt.Models;
 
-/// <summary>타격 이미지를 어떻게 다룰지 결정하는 모드.</summary>
-public enum SpriteMode
-{
-    /// <summary>이미지 한 장을 꾸겨가며 사용한다.</summary>
-    Single,
-
-    /// <summary>타격마다 다음 이미지로 교체한다. 장수 제한 없음.</summary>
-    Sequence,
-}
-
 /// <summary>디스크에 저장되는 위젯 설정.</summary>
 public sealed class AppSettings
 {
-    public SpriteMode Mode { get; set; } = SpriteMode.Single;
-
-    /// <summary>Single 모드에서 사용할 이미지 경로.</summary>
-    public string? SinglePath { get; set; }
-
-    /// <summary>Sequence 모드에서 순서대로 순환할 이미지 경로 목록.</summary>
-    public List<string> SequencePaths { get; set; } = [];
+    /// <summary>쓸 캐릭터 폴더. null 이면 기본 제공 캐릭터를 쓴다.</summary>
+    public string? CharacterPath { get; set; }
 
     /// <summary>위젯의 가로 길이(px). 세로는 이미지 비율로 결정된다.</summary>
     public double WidgetWidth { get; set; } = 220;
 
     /// <summary>이 시간 안에 다시 때리면 콤보가 이어진다(ms).</summary>
     public int ComboTimeoutMs { get; set; } = 1200;
+
+    /// <summary>대기 중 idle 이미지를 갈아 끼우는 간격의 최소/최대(ms). 그 사이에서 매번 다시 뽑는다.</summary>
+    public int IdleMinMs { get; set; } = 2000;
+
+    public int IdleMaxMs { get; set; } = 5000;
 
     public bool Topmost { get; set; } = true;
 
@@ -37,11 +27,11 @@ public sealed class AppSettings
 
     public AppSettings Clone() => new()
     {
-        Mode = Mode,
-        SinglePath = SinglePath,
-        SequencePaths = [.. SequencePaths],
+        CharacterPath = CharacterPath,
         WidgetWidth = WidgetWidth,
         ComboTimeoutMs = ComboTimeoutMs,
+        IdleMinMs = IdleMinMs,
+        IdleMaxMs = IdleMaxMs,
         Topmost = Topmost,
         PositionLocked = PositionLocked,
         WindowLeft = WindowLeft,
