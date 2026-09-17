@@ -58,6 +58,8 @@ public sealed class CharacterSpriteSource : ISpriteSource
 
     public void SetVolume(double volume, bool muted) => _character.Audio.SetVolume(volume, muted);
 
+    public void ReleaseAudio() => _character.ReleaseAudio();
+
     public void OnHit(FacingDirection direction)
     {
         _beatRemaining = BeatHoldSeconds;

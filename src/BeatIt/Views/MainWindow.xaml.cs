@@ -75,6 +75,12 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>설정 창이 값을 만질 때마다 그대로 비춰준다. 저장은 확인을 눌렀을 때만.</summary>
     public void Preview(AppSettings settings) => ApplySettings(settings);
 
+    /// <summary>캐릭터 관리 창을 열기 전에 소리 파일을 놓아준다. 안 그러면 잠겨서 못 뺀다.</summary>
+    public void ReleaseAudio() => _spriteSource?.ReleaseAudio();
+
+    /// <summary>관리 창에서 파일을 고쳤다. 경로가 그대로여도 통째로 다시 읽는다.</summary>
+    public void ReloadAssets() => ApplySettings(_settings, force: true);
+
     private void OnRendering(object? sender, EventArgs e)
     {
         if (e is not RenderingEventArgs args)
@@ -354,11 +360,14 @@ public partial class MainWindow : Window, ISettingsPreview
 
     private void OnExit(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
 
-    /// <summary>바뀐 것만 다시 만든다. 슬라이더를 끄는 동안 이미지를 매번 다시 읽으면 버벅인다.</summary>
-    private void ApplySettings(AppSettings next)
+    /// <summary>
+    /// 바뀐 것만 다시 만든다. 슬라이더를 끄는 동안 이미지를 매번 다시 읽으면 버벅인다.
+    /// <paramref name="force"/> 면 경로가 그대로여도 다시 읽는다. 폴더 안이 달라졌을 때 쓴다.
+    /// </summary>
+    private void ApplySettings(AppSettings next, bool force = false)
     {
-        bool rebuildCharacter = _spriteSource is null || !SamePath(next.CharacterPath, _settings.CharacterPath);
-        bool rebuildTheme = _theme is null || !SamePath(next.ThemePath, _settings.ThemePath);
+        bool rebuildCharacter = force || _spriteSource is null || !SamePath(next.CharacterPath, _settings.CharacterPath);
+        bool rebuildTheme = force || _theme is null || !SamePath(next.ThemePath, _settings.ThemePath);
         _settings = next;
 
         if (rebuildCharacter)

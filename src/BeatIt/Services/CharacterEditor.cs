@@ -271,10 +271,11 @@ public static class CharacterEditor
 
     /// <summary>
     /// 소리는 첫 소리가 늦지 않게 파일마다 미리 열어둔다(<see cref="SoundBank"/>).
-    /// 그래서 지금 쓰고 있는 캐릭터의 소리 파일은 잠겨 있다.
+    /// 이 창을 여는 동안은 위젯이 그걸 놓아주므로 보통은 여기까지 안 온다.
+    /// 그래도 막혔다면 앱 밖의 다른 프로그램이 물고 있는 것이다.
     /// </summary>
     private static string InUseHint(CharacterSlot slot) => slot.IsSound
-        ? "\n\n지금 쓰고 있는 캐릭터의 소리는 미리 열어둔 상태라 잠겨 있다. 다른 캐릭터로 바꾼 뒤에 빼야 한다."
+        ? "\n\n다른 프로그램이 그 소리 파일을 열어둔 것 같다. 닫고 다시 해봐야 한다."
         : string.Empty;
 
     /// <summary>지우기를 시도한다. 잠겨 있으면 false. 여러 개를 뺄 때 하나에 걸려 멈추지 않으려고 쓴다.</summary>

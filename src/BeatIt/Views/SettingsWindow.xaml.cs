@@ -266,12 +266,19 @@ public partial class SettingsWindow : Window
     {
         CharacterLibrary.EnsureUserRoot();
 
+        // 위젯이 쥐고 있는 소리 파일을 먼저 놓게 한다. 미리 열어둔 채로는 지금 쓰는 캐릭터의
+        // 소리를 빼지도 갈아 끼우지도 못한다. 닫고 나서 통째로 다시 읽으니 조용한 건 그동안뿐이다.
+        _preview.ReleaseAudio();
+
         string? chosen = (CharacterCombo.SelectedItem as CharacterInfo)?.Path;
         CharacterEditorWindow editor = new(chosen) { Owner = this };
         editor.ShowDialog();
 
         // 편집기에서 무엇을 보고 있었는지가 아니라, 쓰던 캐릭터가 어떻게 됐는지를 따라간다.
         ReloadCharacters(editor.InUse);
+
+        // 폴더 안이 달라졌으니 경로가 그대로여도 다시 읽어야 방금 넣은 그림과 소리가 나온다.
+        _preview.ReloadAssets();
     }
 
     /// <summary>편집기가 만들고 지운 걸 목록에 반영한다. 쓰던 캐릭터가 사라졌으면 기본 캐릭터로 떨어진다.</summary>

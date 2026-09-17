@@ -38,7 +38,7 @@ public sealed class Character : IDisposable
 
     public DirectionalSprites Beat { get; }
 
-    public CharacterAudio Audio { get; }
+    public CharacterAudio Audio { get; private set; }
 
     /// <summary>중복 없는 전체 스프라이트. 구독/해제와 정리에 쓴다.</summary>
     public IReadOnlyList<Sprite> All { get; }
@@ -79,6 +79,22 @@ public sealed class Character : IDisposable
             CharacterAudio.Silent);
     }
 
+    /// <summary>
+    /// 쥐고 있던 소리 파일을 놓는다. 그림은 그대로라 위젯은 계속 떠 있고, 소리만 조용해진다.
+    /// 캐릭터 폴더를 고치는 동안 파일이 잠겨 있지 않게 하려는 것이고, 고치고 나면 통째로 다시 읽는다.
+    /// </summary>
+    public void ReleaseAudio()
+    {
+        if (ReferenceEquals(Audio, CharacterAudio.Silent))
+        {
+            return;
+        }
+
+        CharacterAudio released = Audio;
+        Audio = CharacterAudio.Silent;
+        released.Dispose();
+    }
+
     public void Dispose()
     {
         foreach (Sprite sprite in All)
@@ -86,7 +102,7 @@ public sealed class Character : IDisposable
             sprite.Dispose();
         }
 
-        Audio.Dispose();
+        ReleaseAudio();
     }
 
     private static DirectionalSprites LoadDirectional(DirectionalPaths paths, IReadOnlyList<Sprite> fallback)
