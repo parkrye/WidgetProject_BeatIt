@@ -21,6 +21,15 @@ public sealed class ComboStyle
     /// <summary>무지개의 채도. 1 로 놓으면 형광색이 번갈아 터져서 오래 보고 있기 힘들다.</summary>
     private const double RainbowSaturation = 0.55;
 
+    /// <summary>계단을 한 칸 오른 직후, 다음 계단 색을 이만큼부터 섞기 시작한다.</summary>
+    private const double PartialFloor = 0.05;
+
+    /// <summary>
+    /// 다음 계단에 닿기 직전까지 섞을 수 있는 최대치. 1 에 가까우면 계단에 도착해도
+    /// 색이 그대로라 계단이 오른 걸 모른다. 남은 몫이 그 자리에서 한 번에 채워져야 사건이 된다.
+    /// </summary>
+    private const double PartialCeiling = 0.6;
+
     /// <summary>흰색에서 시작해 붉게, 끝으로 갈수록 분홍으로. 이 사이를 계단 수만큼 나눠 쓴다.</summary>
     private static readonly Color[] Spectrum =
     [
@@ -81,12 +90,43 @@ public sealed class ComboStyle
     public double HeightFor(int combo) => SizeFor(combo) * (1 + LabelRatio);
 
     /// <summary>
-    /// 이 콤보의 색. 스펙트럼을 다 쓰기 전까지는 계단마다 조금씩 붉어지고,
-    /// 다 쓴 뒤에는 무지개가 도니 이 값은 그 첫 색이 된다.
+    /// 이 콤보의 색. 계단 사이에서도 다음 계단 색 쪽으로 조금씩 물들고,
+    /// 계단이 오르는 자리에서 한 번에 그 색이 된다.
+    /// 스펙트럼을 다 쓴 뒤에는 무지개가 도니 이 값은 그 첫 색이 된다.
     /// </summary>
     public Color ColorFor(int combo)
     {
-        double progress = Math.Clamp(TierOf(combo) / (double)SpectrumTiers, 0, 1);
+        int tier = TierOf(combo);
+        return Lerp(TierColor(tier), TierColor(tier + 1), BlendWithin(combo));
+    }
+
+    /// <summary>
+    /// 계단 안에서 다음 계단 색을 얼마나 당겨 쓸지(0~1).
+    /// 계단이 막 오른 자리는 0 이라 그 계단의 색 그대로고, 거기서부터
+    /// <see cref="PartialFloor"/> ~ <see cref="PartialCeiling"/> 사이를 훑으며 물든다.
+    /// 다음 계단에 닿는 순간 나머지가 한 번에 채워져서 색이 확 바뀐 것처럼 보인다.
+    /// </summary>
+    private double BlendWithin(int combo)
+    {
+        if (Milestone <= 0)
+        {
+            return 0;
+        }
+
+        int into = Math.Max(0, combo) % Milestone;
+        if (into == 0)
+        {
+            return 0;
+        }
+
+        double progress = into / (double)Milestone;
+        return PartialFloor + ((PartialCeiling - PartialFloor) * progress);
+    }
+
+    /// <summary>계단 <paramref name="tier"/> 가 다 오른 자리의 색. 스펙트럼을 넘어서면 마지막 색에서 선다.</summary>
+    private static Color TierColor(int tier)
+    {
+        double progress = Math.Clamp(tier / (double)SpectrumTiers, 0, 1);
         double scaled = progress * (Spectrum.Length - 1);
         int index = Math.Min((int)scaled, Spectrum.Length - 2);
         return Lerp(Spectrum[index], Spectrum[index + 1], scaled - index);
