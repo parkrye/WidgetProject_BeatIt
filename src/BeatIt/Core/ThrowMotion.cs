@@ -3,9 +3,9 @@ using System.Windows;
 namespace BeatIt.Core;
 
 /// <summary>벽에 부딪힌 한 번. 어느 쪽이 얼마나 세게 박았는지.</summary>
-/// <param name="Side">캐릭터의 어느 쪽이 벽에 닿았는지. 그쪽 beat 그림이 뜬다.</param>
+/// <param name="Side">캐릭터의 어느 쪽이 닿았는지. 그쪽 beat 그림이 뜬다. 벽은 한 방향뿐이고, 커서는 직각 쪽까지 들고 온다.</param>
 /// <param name="Strength">0 이면 안 부딪혔다. 1 이 보통 한 대 맞은 정도.</param>
-public readonly record struct Bump(FacingDirection Side, double Strength)
+public readonly record struct Bump(Aim Side, double Strength)
 {
     public static Bump None => new(FacingDirection.Default, 0);
 
@@ -81,7 +81,7 @@ public sealed class ThrowMotion
     /// 길이는 안 본다. 그 방향을 법선으로 삼아 튕겨낸다.
     /// 이미 멀어지는 중이면 아무 일도 안 난다. 닿은 채로 지나가는 동안 매 프레임 튕기지 않게.
     /// </summary>
-    public Bump BounceOff(Vector away, FacingDirection side)
+    public Bump BounceOff(Vector away, Aim side)
     {
         if (!IsFlying)
         {
@@ -189,7 +189,7 @@ public sealed class ThrowMotion
     /// 이미 멀어지는 중이면 도로 세우기만 하고 박은 걸로 안 친다. 콤보가 오르면 창이 커지면서
     /// 이동 영역이 그만큼 좁아지는데, 그것까지 박은 걸로 치면 벽에 붙어 콤보가 저 혼자 쌓인다.
     /// </summary>
-    private Bump Reflect(ref double component, double into, FacingDirection side)
+    private Bump Reflect(ref double component, double into, Aim side)
     {
         if (component * into <= 0)
         {
