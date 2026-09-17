@@ -1,7 +1,7 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
+using System.Windows.Shapes;
 using BeatIt.Core;
 
 namespace BeatIt.Views;
@@ -17,6 +17,7 @@ public partial class AreaPickerWindow : Window
 
     private Point _anchor;
     private Rect _selection = Rect.Empty;
+    private double _readoutHeight;
     private bool _dragging;
 
     public AreaPickerWindow(Rect? initial)
@@ -52,6 +53,12 @@ public partial class AreaPickerWindow : Window
     {
         Activate();
         Focus();
+
+        // 안내문과 치수 표시는 크기가 변하지 않는다. 자리를 한 번만 재두고 그 뒤로는 안 잰다.
+        UpdateLayout();
+        Place(Guide, (ActualWidth - Guide.ActualWidth) / 2, (ActualHeight - Guide.ActualHeight) / 2);
+        _readoutHeight = Readout.ActualHeight;
+
         Redraw();
     }
 
@@ -118,19 +125,16 @@ public partial class AreaPickerWindow : Window
 
     private void Redraw()
     {
-        RectangleGeometry full = new(new Rect(0, 0, ActualWidth, ActualHeight));
         bool usable = IsUsable(_selection);
 
         // 고른 자리만 원래 밝기로 남기고 나머지를 덮는다.
-        Shade.Data = usable
-            ? new CombinedGeometry(GeometryCombineMode.Exclude, full, new RectangleGeometry(_selection))
-            : full;
+        ShadeAround(usable ? _selection : Rect.Empty);
+        Guide.Visibility = usable || _dragging ? Visibility.Collapsed : Visibility.Visible;
 
         if (!usable)
         {
             Marquee.Visibility = Visibility.Collapsed;
-            Readout.Visibility = Visibility.Collapsed;
-            PlaceGuide();
+            Readout.Visibility = Visibility.Hidden;
             return;
         }
 
@@ -141,18 +145,38 @@ public partial class AreaPickerWindow : Window
 
         ReadoutText.Text = $"{_selection.Width:F0} x {_selection.Height:F0}";
         Readout.Visibility = Visibility.Visible;
-        Readout.UpdateLayout();
 
         // 위쪽에 자리가 없으면 사각형 안쪽으로 내려 붙인다.
-        double readoutTop = _selection.Y - Readout.ActualHeight - 8;
+        double readoutTop = _selection.Y - _readoutHeight - 8;
         Place(Readout, _selection.X, readoutTop < 0 ? _selection.Y + 8 : readoutTop);
     }
 
-    private void PlaceGuide()
+    /// <summary>비워둘 자리를 뺀 나머지를 네 장으로 덮는다. 빈 사각형을 주면 화면을 통째로 덮는다.</summary>
+    private void ShadeAround(Rect hole)
     {
-        Guide.Visibility = _dragging ? Visibility.Collapsed : Visibility.Visible;
-        Guide.UpdateLayout();
-        Place(Guide, (ActualWidth - Guide.ActualWidth) / 2, (ActualHeight - Guide.ActualHeight) / 2);
+        double width = ActualWidth;
+        double height = ActualHeight;
+
+        if (hole.IsEmpty)
+        {
+            Fill(ShadeTop, 0, 0, width, height);
+            Fill(ShadeBottom, 0, 0, 0, 0);
+            Fill(ShadeLeft, 0, 0, 0, 0);
+            Fill(ShadeRight, 0, 0, 0, 0);
+            return;
+        }
+
+        Fill(ShadeTop, 0, 0, width, hole.Top);
+        Fill(ShadeBottom, 0, hole.Bottom, width, height - hole.Bottom);
+        Fill(ShadeLeft, 0, hole.Top, hole.Left, hole.Height);
+        Fill(ShadeRight, hole.Right, hole.Top, width - hole.Right, hole.Height);
+    }
+
+    private static void Fill(Rectangle rectangle, double left, double top, double width, double height)
+    {
+        Place(rectangle, left, top);
+        rectangle.Width = Math.Max(0, width);
+        rectangle.Height = Math.Max(0, height);
     }
 
     private static void Place(UIElement element, double left, double top)

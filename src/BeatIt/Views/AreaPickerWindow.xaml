@@ -1,4 +1,4 @@
-<Window x:Class="BeatIt.Views.AreaPickerWindow"
+﻿<Window x:Class="BeatIt.Views.AreaPickerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="이동 영역 그리기"
@@ -12,7 +12,12 @@
         Cursor="Cross">
     <!-- Transparent 는 마우스를 받지만 Background 를 아예 안 주면 안 받는다. 빈 데를 눌러도 드래그가 시작돼야 한다. -->
     <Canvas x:Name="Root" Background="Transparent">
-        <Path x:Name="Shade" Fill="#8C000000" />
+        <!-- 고른 자리만 남기고 위·아래·왼쪽·오른쪽을 덮는 네 장.
+             화면 전체짜리 지오메트리를 마우스 움직일 때마다 새로 만드는 것보다 훨씬 싸다. -->
+        <Rectangle x:Name="ShadeTop" Fill="#8C000000" IsHitTestVisible="False" />
+        <Rectangle x:Name="ShadeBottom" Fill="#8C000000" IsHitTestVisible="False" />
+        <Rectangle x:Name="ShadeLeft" Fill="#8C000000" IsHitTestVisible="False" />
+        <Rectangle x:Name="ShadeRight" Fill="#8C000000" IsHitTestVisible="False" />
 
         <Rectangle x:Name="Marquee"
                    Stroke="#FFFFFFFF"
@@ -21,11 +26,12 @@
                    Visibility="Collapsed"
                    IsHitTestVisible="False" />
 
+        <!-- Collapsed 로 두면 크기를 못 재서 자리를 잡을 수 없다. 처음부터 Hidden 으로 재둔다. -->
         <Border x:Name="Readout"
                 Background="#E6101014"
                 CornerRadius="4"
                 Padding="10,6"
-                Visibility="Collapsed"
+                Visibility="Hidden"
                 IsHitTestVisible="False">
             <TextBlock x:Name="ReadoutText" Foreground="White" FontSize="14" FontWeight="SemiBold" />
         </Border>
