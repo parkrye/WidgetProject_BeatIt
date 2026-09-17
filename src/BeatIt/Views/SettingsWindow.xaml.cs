@@ -399,6 +399,7 @@ public partial class SettingsWindow : Window
         ThrowBounceRow.Value = from.ThrowBounce;
         ThrowFrictionRow.Value = from.ThrowFriction;
         ThrowStopRow.Value = from.ThrowStopSpeed;
+        ThrowCursorCheck.IsChecked = from.ThrowBounceOffCursor;
     }
 
     private void FillHit(AppSettings from)
@@ -461,6 +462,7 @@ public partial class SettingsWindow : Window
         Result.ThrowBounce = ThrowBounceRow.Value;
         Result.ThrowFriction = ThrowFrictionRow.Value;
         Result.ThrowStopSpeed = ThrowStopRow.Value;
+        Result.ThrowBounceOffCursor = ThrowCursorCheck.IsChecked == true;
 
         Result.HitPower = HitPowerRow.Value;
         Result.HitTilt = HitTiltRow.Value;

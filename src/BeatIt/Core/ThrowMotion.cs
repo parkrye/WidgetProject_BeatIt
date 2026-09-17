@@ -77,6 +77,38 @@ public sealed class ThrowMotion
     }
 
     /// <summary>
+    /// 벽이 아닌 것에 부딪혔다. <paramref name="away"/> 는 부딪힌 자리에서 멀어지는 방향이고,
+    /// 길이는 안 본다. 그 방향을 법선으로 삼아 튕겨낸다.
+    /// 이미 멀어지는 중이면 아무 일도 안 난다. 닿은 채로 지나가는 동안 매 프레임 튕기지 않게.
+    /// </summary>
+    public Bump BounceOff(Vector away, FacingDirection side)
+    {
+        if (!IsFlying)
+        {
+            return Bump.None;
+        }
+
+        // 정확히 한가운데를 찔렸으면 멀어질 방향이 없다. 온 길로 되돌려보낸다.
+        Vector normal = away.LengthSquared > 0 ? away : -_velocity;
+        normal /= normal.Length;
+
+        // 법선을 파고드는 속도. 이만큼을 두 배로 되돌려주면 반사가 된다.
+        double into = -(_velocity * normal);
+        if (into <= 0)
+        {
+            return Bump.None;
+        }
+
+        _velocity = (_velocity + (normal * into * 2)) * Math.Clamp(Bounce, 0, 1);
+        if (_velocity.Length < StopSpeed)
+        {
+            Stop();
+        }
+
+        return new Bump(side, Math.Clamp(into / FullBumpSpeed, 0.15, 2.4));
+    }
+
+    /// <summary>
     /// 이번 프레임에 창을 얼마나 옮길지 돌려준다. <paramref name="travel"/> 은 창 왼쪽 위가 갈 수 있는 범위다.
     /// 벽에 닿았으면 <paramref name="bump"/> 에 어느 쪽을 얼마나 세게 박았는지 담긴다.
     /// </summary>

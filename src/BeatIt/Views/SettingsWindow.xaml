@@ -1,4 +1,4 @@
-<Window x:Class="BeatIt.Views.SettingsWindow"
+﻿<Window x:Class="BeatIt.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:sys="clr-namespace:System;assembly=System.Runtime"
@@ -78,6 +78,7 @@
         <sys:String x:Key="ThrowBounceHint">벽에 튕길 때 남는 속도의 비율. 0 이면 벽에 붙어 서고, 1 에 가까울수록 오래 튄다.</sys:String>
         <sys:String x:Key="ThrowFrictionHint">나는 동안 초당 줄어드는 속도의 비율. 클수록 빨리 선다. 0 이면 벽에서 튕기기만 하며 영영 돌아다닌다.</sys:String>
         <sys:String x:Key="ThrowStopHint">이 속도 밑으로 떨어지면 다 왔다고 보고 멈춘다. 너무 낮게 잡으면 눈에 안 보이게 기어가는 동안 창이 계속 움직인다.</sys:String>
+        <sys:String x:Key="ThrowCursorHint">날아가다 커서에 닿았을 때 할 일. 꺼두면 그 자리에 선다. 켜면 커서를 벽으로 쳐서 닿은 쪽 반대로 튕겨 나가고, 벽에 튕길 때와 똑같이 콤보가 오른다. 커서를 대고 계속 받아넘길 수 있다.</sys:String>
         <sys:String x:Key="HitPowerHint">한 대 맞을 때 꾸겨지는 세기. 스프링에 임펄스로 밀어넣기 때문에 연타하면 흔들림이 누적된다.</sys:String>
         <sys:String x:Key="HitTiltHint">한 대 맞을 때 휘청이는 세기. 어느 쪽으로 기울지는 맞을 때마다 랜덤이다.</sys:String>
         <sys:String x:Key="HitGainHint">콤보 한 단계마다 타격이 세지는 비율. 0 이면 몇 콤보든 같은 세기로 맞는다.</sys:String>
@@ -315,6 +316,8 @@
                                 <controls:SliderRow x:Name="ThrowStopRow" Label="멈추는 속도" Minimum="5" Maximum="300" Step="5"
                                                     Unit="px/s" ValueChanged="OnRowChanged"
                                                     ToolTip="{StaticResource ThrowStopHint}" />
+                                <CheckBox x:Name="ThrowCursorCheck" Content="커서에 닿으면 멈추지 말고 튕기기" Margin="0,8,0,0"
+                                          Click="OnValueToggled" ToolTip="{StaticResource ThrowCursorHint}" />
                                 <Button Content="기본값으로" Style="{StaticResource Reset}" Click="OnResetThrow"
                                         ToolTip="이 칸의 값만 처음 값으로 되돌린다." />
                             </StackPanel>

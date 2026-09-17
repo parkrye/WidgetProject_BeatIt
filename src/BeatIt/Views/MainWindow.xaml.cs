@@ -236,8 +236,9 @@ public partial class MainWindow : Window, ISettingsPreview
     }
 
     /// <summary>
-    /// 날아가다 커서에 닿으면 그 자리에 선다. 걷다가 커서를 만나면 멈춰 서는 것과 같은 이유로,
-    /// 커서 밑을 지나가 버리면 조준한 클릭이 허공을 때린다.
+    /// 날아가다 커서에 닿았다. 기본은 그 자리에 서는 것이다. 걷다가 커서를 만나면 멈춰 서는
+    /// 것과 같은 이유로, 커서 밑을 지나가 버리면 조준한 클릭이 허공을 때린다.
+    /// 켜두면 서는 대신 커서를 벽처럼 여겨 튕겨 나간다.
     /// 뿌린 손은 놓은 자리에 그대로 있어서 날기 시작할 때는 커서 밑에 있다. 한 번 커서를
     /// 벗어나기 전까지는 안 잡는다. 안 그러면 뿌리는 족족 그 자리에 선다.
     /// </summary>
@@ -254,7 +255,35 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
-        _throw.Stop();
+        if (!_settings.ThrowBounceOffCursor)
+        {
+            _throw.Stop();
+            return;
+        }
+
+        BounceOffCursor();
+    }
+
+    /// <summary>
+    /// 커서를 벽처럼 쳐서 튕겨낸다. 때린 자리는 클릭과 똑같이 따지므로 그쪽 <c>beat</c> 그림이
+    /// 뜨고 이펙트도 닿은 자리에서 튄다.
+    /// 튕겨낸 뒤에는 다시 잠가둔다. 커서에서 멀어지는 중이니 곧 벗어나는데, 그전까지 매 프레임
+    /// 튕기려 들면 커서에 들러붙은 채로 콤보만 쌓인다.
+    /// </summary>
+    private void BounceOffCursor()
+    {
+        Point where = Mouse.GetPosition(SpriteImage);
+        Size size = SpriteImage.RenderSize;
+        Vector away = new Point(size.Width / 2, size.Height / 2) - where;
+
+        Bump bump = _throw.BounceOff(away, Facing.FromHit(where, size));
+        if (!bump.Happened)
+        {
+            return;
+        }
+
+        _catchArmed = false;
+        Strike(bump, Mouse.GetPosition(this));
     }
 
     /// <summary>
@@ -262,12 +291,15 @@ public partial class MainWindow : Window, ISettingsPreview
     /// 꾸겨지는 세기만 콤보가 아니라 박은 세기에서 온다. 살살 굴러가 닿은 것과
     /// 던져 박은 것이 같이 꾸겨지면 던진 맛이 안 산다.
     /// </summary>
-    private void Strike(Bump bump)
+    private void Strike(Bump bump) => Strike(bump, EdgeToward(bump.Side));
+
+    /// <summary>박은 자리를 아는 경우. <paramref name="where"/> 는 창 안 좌표다.</summary>
+    private void Strike(Bump bump, Point where)
     {
         int combo = _comboCounter.Register();
         _spriteSource!.OnHit(bump.Side);
         _hitAnimator.Bump(bump.Strength);
-        _effects.Spawn(EdgeToward(bump.Side), SpriteImage.Width * EffectSizeRatio, combo);
+        _effects.Spawn(where, SpriteImage.Width * EffectSizeRatio, combo);
 
         // 자리를 먼저 넓히고 띄운다. 거꾸로 하면 계단이 오른 첫 프레임에 숫자가 머리를 파고든다.
         ReserveForCombo(combo);
