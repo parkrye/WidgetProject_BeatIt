@@ -102,13 +102,8 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
-        Rect bounds = new(
-            SystemParameters.VirtualScreenLeft,
-            SystemParameters.VirtualScreenTop,
-            Math.Max(1, SystemParameters.VirtualScreenWidth - Width),
-            Math.Max(1, SystemParameters.VirtualScreenHeight - Height));
-
-        Vector step = _wander.Update(delta, new Point(Left, Top), bounds);
+        Rect area = WanderArea.Resolve(_settings.WanderArea, CustomArea(), this, Center);
+        Vector step = _wander.Update(delta, new Point(Left, Top), WanderArea.Travel(area, new Size(Width, Height)));
         if (step == default)
         {
             return;
@@ -136,6 +131,15 @@ public partial class MainWindow : Window, ISettingsPreview
         _moveDirection = Facing.FromMotion(_motion, _moveDirection);
         _motion = default;
     }
+
+    /// <summary>창 한가운데. 어느 모니터에 올라가 있는지 물어볼 때 쓴다.</summary>
+    private Point Center => new(Left + (Width / 2), Top + (Height / 2));
+
+    /// <summary>직접 그려둔 영역. 한 번도 안 그렸으면 빈 사각형이라 화면 전체로 떨어진다.</summary>
+    private Rect CustomArea() =>
+        _settings.CustomWanderArea is { } area
+            ? new Rect(area.Left, area.Top, area.Width, area.Height)
+            : Rect.Empty;
 
     private void OnSpriteMouseDown(object sender, MouseButtonEventArgs e)
     {
