@@ -1,4 +1,20 @@
+using BeatIt.Core;
+
 namespace BeatIt.Models;
+
+/// <summary>화면 좌표로 적어둔 사각형. 설정 파일에 그대로 실린다.</summary>
+public sealed class AreaRect
+{
+    public double Left { get; set; }
+
+    public double Top { get; set; }
+
+    public double Width { get; set; }
+
+    public double Height { get; set; }
+
+    public AreaRect Clone() => new() { Left = Left, Top = Top, Width = Width, Height = Height };
+}
 
 /// <summary>디스크에 저장되는 위젯 설정.</summary>
 public sealed class AppSettings
@@ -45,6 +61,12 @@ public sealed class AppSettings
     /// <summary>켜면 위젯이 혼자 화면을 돌아다닌다.</summary>
     public bool Wander { get; set; }
 
+    /// <summary>돌아다닐 범위. <see cref="WanderAreaKind.Custom"/> 이면 <see cref="CustomWanderArea"/> 를 쓴다.</summary>
+    public WanderAreaKind WanderArea { get; set; } = WanderAreaKind.FullScreen;
+
+    /// <summary>직접 그려둔 이동 영역. 한 번도 안 그렸으면 null 이고, 그때는 화면 전체로 본다.</summary>
+    public AreaRect? CustomWanderArea { get; set; }
+
     public bool Topmost { get; set; } = true;
 
     public bool PositionLocked { get; set; }
@@ -70,6 +92,8 @@ public sealed class AppSettings
         IdleSoundMaxMs = IdleSoundMaxMs,
         EffectsEnabled = EffectsEnabled,
         Wander = Wander,
+        WanderArea = WanderArea,
+        CustomWanderArea = CustomWanderArea?.Clone(),
         Topmost = Topmost,
         PositionLocked = PositionLocked,
         WindowLeft = WindowLeft,

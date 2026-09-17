@@ -201,13 +201,30 @@
 
             <TabItem Header="동작">
                 <StackPanel Margin="14">
-                    <CheckBox x:Name="WanderCheck" Content="혼자 돌아다니기 (때리거나 끌면 잠깐 멈춘다)" Click="OnValueToggled" />
-                    <CheckBox x:Name="TopmostCheck" Content="항상 위에" Margin="0,10,0,0" Click="OnValueToggled" />
+                    <CheckBox x:Name="WanderCheck" Content="혼자 돌아다니기 (때리거나 끌면 잠깐 멈춘다)" Click="OnWanderToggled" />
+
+                    <Grid x:Name="WanderAreaRow" Margin="20,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="이동 영역" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <ComboBox x:Name="WanderAreaCombo" Grid.Column="1" SelectionChanged="OnWanderAreaChanged" />
+                        <Button x:Name="PickAreaButton" Grid.Column="2" Content="다시 그리기" Padding="12,4" Margin="6,0,0,0" Click="OnPickArea" />
+                    </Grid>
+                    <TextBlock x:Name="WanderAreaSummary" Foreground="#555555" Margin="20,8,0,0" TextWrapping="Wrap" />
+
+                    <CheckBox x:Name="TopmostCheck" Content="항상 위에" Margin="0,14,0,0" Click="OnValueToggled" />
                     <CheckBox x:Name="LockCheck" Content="위치 잠금 (끌어서 옮기기와 돌아다니기를 막는다)" Margin="0,10,0,0" Click="OnValueToggled" />
 
                     <Border Style="{StaticResource Hint}">
                         <TextBlock TextWrapping="Wrap" Foreground="#444444">
-                            돌아다니기를 켜면 화면 아무 데나 목적지를 골라 걸어가고, 도착하면 잠깐 쉰다.<LineBreak />
+                            돌아다니기를 켜면 이동 영역 안에서 목적지를 골라 걸어가고, 도착하면 잠깐 쉰다.<LineBreak />
+                            <Run FontWeight="Bold">직접 지정</Run> 을 고르면 화면이 어두워진다. 끌어서 사각형을 그리고 Enter 를 누르면 된다.<LineBreak />
+                            영역 밖에 있어도 끌어내지 않는다. 다음 목적지가 영역 안이라 알아서 걸어 들어온다.<LineBreak />
+                            영역은 <Run FontWeight="Bold">위젯 창 전체</Run>가 들어가는 범위다. 창은 늘어나고 흔들려도 안 잘리게 여백을 크게 갖고 있어서,
+                            캐릭터는 그린 경계보다 조금 안쪽까지만 간다.<LineBreak />
                             위치 잠금이 켜져 있으면 돌아다니지 않는다.
                         </TextBlock>
                     </Border>

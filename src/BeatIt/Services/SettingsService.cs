@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using BeatIt.Models;
 
 namespace BeatIt.Services;
@@ -10,6 +11,9 @@ public sealed class SettingsService
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
+
+        // 이동 영역 같은 값이 숫자로 적히면 사람이 파일을 열어봐도 뭔지 모른다. 숫자로 적힌 옛 파일도 그대로 읽힌다.
+        Converters = { new JsonStringEnumConverter() },
     };
 
     private readonly string _filePath;

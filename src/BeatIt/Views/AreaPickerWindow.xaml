@@ -1,0 +1,44 @@
+<Window x:Class="BeatIt.Views.AreaPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="이동 영역 그리기"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        WindowStartupLocation="Manual"
+        Cursor="Cross">
+    <!-- Transparent 는 마우스를 받지만 Background 를 아예 안 주면 안 받는다. 빈 데를 눌러도 드래그가 시작돼야 한다. -->
+    <Canvas x:Name="Root" Background="Transparent">
+        <Path x:Name="Shade" Fill="#8C000000" />
+
+        <Rectangle x:Name="Marquee"
+                   Stroke="#FFFFFFFF"
+                   StrokeThickness="1.5"
+                   StrokeDashArray="4 3"
+                   Visibility="Collapsed"
+                   IsHitTestVisible="False" />
+
+        <Border x:Name="Readout"
+                Background="#E6101014"
+                CornerRadius="4"
+                Padding="10,6"
+                Visibility="Collapsed"
+                IsHitTestVisible="False">
+            <TextBlock x:Name="ReadoutText" Foreground="White" FontSize="14" FontWeight="SemiBold" />
+        </Border>
+
+        <Border x:Name="Guide"
+                Background="#E6101014"
+                CornerRadius="6"
+                Padding="18,12"
+                IsHitTestVisible="False">
+            <TextBlock Foreground="White" FontSize="15" TextAlignment="Center" LineHeight="24">
+                끌어서 위젯이 돌아다닐 영역을 그린다.<LineBreak />
+                <Run Foreground="#B9B9C4" FontSize="13">Enter 확정 · Esc 취소 · 다시 끌면 다시 그린다</Run>
+            </TextBlock>
+        </Border>
+    </Canvas>
+</Window>

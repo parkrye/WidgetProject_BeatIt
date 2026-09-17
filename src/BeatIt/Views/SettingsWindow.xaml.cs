@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using BeatIt.Core;
 using BeatIt.Models;
 using BeatIt.Services;
 using Microsoft.Win32;
@@ -18,6 +19,16 @@ public partial class SettingsWindow : Window
     private readonly string? _defaultCharacter = CharacterLibrary.DefaultPath;
     private readonly string? _defaultTheme = ThemeLibrary.DefaultPath;
 
+    private readonly AreaChoice[] _areaChoices =
+    [
+        new(WanderAreaKind.FullScreen, "화면 전체"),
+        new(WanderAreaKind.CurrentMonitor, "현재 모니터"),
+        new(WanderAreaKind.WorkArea, "작업 영역 (작업표시줄 제외)"),
+        new(WanderAreaKind.Custom, "직접 지정..."),
+    ];
+
+    private AreaRect? _customArea;
+    private AreaChoice _lastAreaChoice;
     private bool _ready;
 
     public SettingsWindow(AppSettings settings, ISettingsPreview preview)
@@ -44,11 +55,16 @@ public partial class SettingsWindow : Window
         IdleSoundMaxSlider.Value = settings.IdleSoundMaxMs;
         EffectsCheck.IsChecked = settings.EffectsEnabled;
         WanderCheck.IsChecked = settings.Wander;
+        _customArea = settings.CustomWanderArea?.Clone();
+        WanderAreaCombo.ItemsSource = _areaChoices;
+        WanderAreaCombo.SelectedItem = _areaChoices.First(choice => choice.Kind == settings.WanderArea);
+        _lastAreaChoice = (AreaChoice)WanderAreaCombo.SelectedItem;
         TopmostCheck.IsChecked = settings.Topmost;
         LockCheck.IsChecked = settings.PositionLocked;
 
         SelectCharacter(settings.CharacterPath);
         SelectTheme(settings.ThemePath);
+        RefreshWanderArea();
 
         // 여기까지는 값을 채워 넣는 단계라 미리보기를 쏘지 않는다.
         _ready = true;
@@ -60,6 +76,99 @@ public partial class SettingsWindow : Window
     private void OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => Push();
 
     private void OnValueToggled(object sender, RoutedEventArgs e) => Push();
+
+    private void OnWanderToggled(object sender, RoutedEventArgs e)
+    {
+        RefreshWanderArea();
+        Push();
+    }
+
+    /// <summary>
+    /// 직접 지정을 고르는 순간 바로 그리게 한다. 그리다 말면 고르기 전으로 되돌린다.
+    /// 이미 그려둔 게 있으면 그대로 쓰고, 다시 그리려면 옆 버튼을 누른다.
+    /// </summary>
+    private void OnWanderAreaChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (WanderAreaCombo.SelectedItem is not AreaChoice choice)
+        {
+            return;
+        }
+
+        if (_ready && choice.Kind == WanderAreaKind.Custom && _customArea is null && !TryPickArea())
+        {
+            WanderAreaCombo.SelectedItem = _lastAreaChoice;
+            return;
+        }
+
+        _lastAreaChoice = choice;
+        RefreshWanderArea();
+        Push();
+    }
+
+    private void OnPickArea(object sender, RoutedEventArgs e)
+    {
+        if (!TryPickArea())
+        {
+            return;
+        }
+
+        RefreshWanderArea();
+        Push();
+    }
+
+    /// <summary>화면을 덮는 오버레이를 띄워 영역을 그리게 한다. 설정 창이 가리면 안 되니 잠깐 숨긴다.</summary>
+    private bool TryPickArea()
+    {
+        Visibility = Visibility.Hidden;
+        try
+        {
+            Rect? initial = _customArea is { } area
+                ? new Rect(area.Left, area.Top, area.Width, area.Height)
+                : null;
+
+            AreaPickerWindow picker = new(initial) { Owner = this };
+            if (picker.ShowDialog() != true)
+            {
+                return false;
+            }
+
+            _customArea = new AreaRect
+            {
+                Left = picker.Area.X,
+                Top = picker.Area.Y,
+                Width = picker.Area.Width,
+                Height = picker.Area.Height,
+            };
+
+            return true;
+        }
+        finally
+        {
+            Visibility = Visibility.Visible;
+            Activate();
+        }
+    }
+
+    private void RefreshWanderArea()
+    {
+        bool wandering = WanderCheck.IsChecked == true;
+        WanderAreaRow.IsEnabled = wandering;
+        WanderAreaSummary.IsEnabled = wandering;
+
+        WanderAreaKind kind = (WanderAreaCombo.SelectedItem as AreaChoice)?.Kind ?? WanderAreaKind.FullScreen;
+        PickAreaButton.Visibility = kind == WanderAreaKind.Custom ? Visibility.Visible : Visibility.Collapsed;
+        WanderAreaSummary.Text = DescribeArea(kind);
+    }
+
+    private string DescribeArea(WanderAreaKind kind) => kind switch
+    {
+        WanderAreaKind.CurrentMonitor => "위젯이 올라가 있는 모니터 안에서만 돈다. 다른 모니터로 끌고 가면 거기서 돈다.",
+        WanderAreaKind.WorkArea => "그 모니터의 작업표시줄을 뺀 자리에서만 돈다.",
+        WanderAreaKind.Custom when _customArea is { } area =>
+            $"그려둔 영역 {area.Width:F0} x {area.Height:F0} @ ({area.Left:F0}, {area.Top:F0})",
+        WanderAreaKind.Custom => "아직 안 그렸다. 화면 전체로 돈다.",
+        _ => "모니터를 다 합친 화면 전체에서 돈다.",
+    };
 
     private void OnCharacterChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -203,6 +312,8 @@ public partial class SettingsWindow : Window
         Result.IdleSoundMaxMs = (int)Math.Max(IdleSoundMaxSlider.Value, IdleSoundMinSlider.Value);
         Result.EffectsEnabled = EffectsCheck.IsChecked == true;
         Result.Wander = WanderCheck.IsChecked == true;
+        Result.WanderArea = (WanderAreaCombo.SelectedItem as AreaChoice)?.Kind ?? WanderAreaKind.FullScreen;
+        Result.CustomWanderArea = _customArea?.Clone();
         Result.Topmost = TopmostCheck.IsChecked == true;
         Result.PositionLocked = LockCheck.IsChecked == true;
         return Result;
@@ -231,6 +342,12 @@ public partial class SettingsWindow : Window
         }
 
         OnThemeChanged(this, null!);
+    }
+
+    /// <summary>이동 영역 콤보에 담기는 항목.</summary>
+    private sealed record AreaChoice(WanderAreaKind Kind, string Label)
+    {
+        public override string ToString() => Label;
     }
 
     private static T Add<T>(ObservableCollection<T> list, T item)
