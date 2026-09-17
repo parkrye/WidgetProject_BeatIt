@@ -72,6 +72,12 @@ public partial class MainWindow : Window, ISettingsPreview
     private bool _positioned;
     private bool _dialogOpen;
 
+    /// <summary>
+    /// 날아가는 중에 커서에 닿으면 잡아도 되는 상태. 뿌린 손은 놓은 자리에 그대로 있어서
+    /// 날기 시작할 때는 늘 커서 밑이다. 한 번 커서를 벗어나야 켜진다.
+    /// </summary>
+    private bool _catchArmed;
+
     public MainWindow(SettingsService settingsService, AppSettings settings)
     {
         InitializeComponent();
@@ -218,25 +224,59 @@ public partial class MainWindow : Window, ISettingsPreview
             Strike(bump);
         }
 
+        // 창이 가만히 있는 커서 밑으로 날아 들어왔을 수 있다. 직접 다시 따져야 올라온 줄 안다.
+        Mouse.Synchronize();
+        CatchByCursor();
+
         if (!_throw.IsFlying)
         {
             // 멈춘 자리가 다음에 켤 때의 자리다. 나는 동안 매 프레임 적을 일은 아니다.
             _ = SavePositionAsync();
         }
-
-        // 창이 가만히 있는 커서 밑으로 날아 들어왔을 수 있다. 직접 다시 따져야 올라온 줄 안다.
-        Mouse.Synchronize();
     }
 
     /// <summary>
-    /// 벽에 박았다. 맞은 것과 같은 그림·소리·이펙트를 내되 <b>콤보는 안 센다.</b>
-    /// 스스로 튕긴 것을 때린 걸로 쳐주면 한 번 던져놓고 콤보를 쌓을 수 있다.
+    /// 날아가다 커서에 닿으면 그 자리에 선다. 걷다가 커서를 만나면 멈춰 서는 것과 같은 이유로,
+    /// 커서 밑을 지나가 버리면 조준한 클릭이 허공을 때린다.
+    /// 뿌린 손은 놓은 자리에 그대로 있어서 날기 시작할 때는 커서 밑에 있다. 한 번 커서를
+    /// 벗어나기 전까지는 안 잡는다. 안 그러면 뿌리는 족족 그 자리에 선다.
+    /// </summary>
+    private void CatchByCursor()
+    {
+        if (!SpriteImage.IsMouseOver)
+        {
+            _catchArmed = true;
+            return;
+        }
+
+        if (!_catchArmed)
+        {
+            return;
+        }
+
+        _throw.Stop();
+    }
+
+    /// <summary>
+    /// 벽에 박았다. 맞은 것과 똑같이 치므로 <b>콤보도 오른다.</b>
+    /// 꾸겨지는 세기만 콤보가 아니라 박은 세기에서 온다. 살살 굴러가 닿은 것과
+    /// 던져 박은 것이 같이 꾸겨지면 던진 맛이 안 산다.
     /// </summary>
     private void Strike(Bump bump)
     {
+        int combo = _comboCounter.Register();
         _spriteSource!.OnHit(bump.Side);
         _hitAnimator.Bump(bump.Strength);
-        _effects.Spawn(EdgeToward(bump.Side), SpriteImage.Width * EffectSizeRatio, 1);
+        _effects.Spawn(EdgeToward(bump.Side), SpriteImage.Width * EffectSizeRatio, combo);
+
+        // 자리를 먼저 넓히고 띄운다. 거꾸로 하면 계단이 오른 첫 프레임에 숫자가 머리를 파고든다.
+        ReserveForCombo(combo);
+        Combo.Show(combo);
+
+        if (_comboStyle.IsMilestone(combo))
+        {
+            Celebrate();
+        }
     }
 
     /// <summary>벽에 닿은 쪽의 캐릭터 가장자리. 이펙트가 부딪힌 자리에서 튀어야 한다.</summary>
@@ -377,7 +417,7 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
-        _throw.Launch(ReleaseVelocity());
+        Fling();
         if (_throw.IsFlying)
         {
             // 아직 자리를 안 잡았다. 멈춘 자리를 저장해야 다음에 켤 때 거기 뜬다.
@@ -399,13 +439,20 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
-        _throw.Launch(ReleaseVelocity());
+        Fling();
         if (_throw.IsFlying)
         {
             return;
         }
 
         await SavePositionAsync();
+    }
+
+    /// <summary>놓은 속도로 던진다. 커서 밑에서 출발하므로 잡히는 건 커서를 벗어난 뒤부터다.</summary>
+    private void Fling()
+    {
+        _catchArmed = false;
+        _throw.Launch(ReleaseVelocity());
     }
 
     /// <summary>

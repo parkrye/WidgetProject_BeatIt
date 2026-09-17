@@ -117,23 +117,23 @@ public sealed class ThrowMotion
         if (target.X < travel.X)
         {
             target.X = travel.X + WallClearance;
-            bump = Stronger(bump, Reflect(ref vx, FacingDirection.Left));
+            bump = Stronger(bump, Reflect(ref vx, -1, FacingDirection.Left));
         }
         else if (target.X > right)
         {
             target.X = right - WallClearance;
-            bump = Stronger(bump, Reflect(ref vx, FacingDirection.Right));
+            bump = Stronger(bump, Reflect(ref vx, 1, FacingDirection.Right));
         }
 
         if (target.Y < travel.Y)
         {
             target.Y = travel.Y + WallClearance;
-            bump = Stronger(bump, Reflect(ref vy, FacingDirection.Up));
+            bump = Stronger(bump, Reflect(ref vy, -1, FacingDirection.Up));
         }
         else if (target.Y > bottom)
         {
             target.Y = bottom - WallClearance;
-            bump = Stronger(bump, Reflect(ref vy, FacingDirection.Down));
+            bump = Stronger(bump, Reflect(ref vy, 1, FacingDirection.Down));
         }
 
         if (!bump.Happened)
@@ -152,8 +152,18 @@ public sealed class ThrowMotion
         return bump;
     }
 
-    private Bump Reflect(ref double component, FacingDirection side)
+    /// <summary>
+    /// <paramref name="into"/> 는 그 벽으로 들어가는 방향의 부호다. 벽 밖에 나가 있어도
+    /// 이미 멀어지는 중이면 도로 세우기만 하고 박은 걸로 안 친다. 콤보가 오르면 창이 커지면서
+    /// 이동 영역이 그만큼 좁아지는데, 그것까지 박은 걸로 치면 벽에 붙어 콤보가 저 혼자 쌓인다.
+    /// </summary>
+    private Bump Reflect(ref double component, double into, FacingDirection side)
     {
+        if (component * into <= 0)
+        {
+            return Bump.None;
+        }
+
         double before = Math.Abs(component);
         component = -component * Math.Clamp(Bounce, 0, 1);
         return new Bump(side, Math.Clamp(before / FullBumpSpeed, 0.15, 2.4));
