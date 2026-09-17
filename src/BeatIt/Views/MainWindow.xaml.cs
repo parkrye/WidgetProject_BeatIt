@@ -224,9 +224,11 @@ public partial class MainWindow : Window, ISettingsPreview
             Strike(bump);
         }
 
-        // 창이 가만히 있는 커서 밑으로 날아 들어왔을 수 있다. 직접 다시 따져야 올라온 줄 안다.
-        Mouse.Synchronize();
         CatchByCursor();
+
+        // 커서에 닿았는지는 CatchByCursor 가 직접 따진다. 이건 멈춘 뒤 이어 걷는 쪽이
+        // 커서가 올라와 있는 걸 알아보라고 맞춰두는 것이다.
+        Mouse.Synchronize();
 
         if (!_throw.IsFlying)
         {
@@ -241,10 +243,14 @@ public partial class MainWindow : Window, ISettingsPreview
     /// 켜두면 서는 대신 커서를 벽처럼 여겨 튕겨 나간다.
     /// 뿌린 손은 놓은 자리에 그대로 있어서 날기 시작할 때는 커서 밑에 있다. 한 번 커서를
     /// 벗어나기 전까지는 안 잡는다. 안 그러면 뿌리는 족족 그 자리에 선다.
+    ///
+    /// 닿았는지는 <see cref="CursorProbe"/> 에 묻는다. 커서는 가만히 있고 창만 움직이는
+    /// 동안에는 <c>IsMouseOver</c> 가 갱신되지 않아서, 그걸 믿으면 벗어난 줄도 닿은 줄도 모른다.
     /// </summary>
     private void CatchByCursor()
     {
-        if (!SpriteImage.IsMouseOver)
+        Point? where = CursorProbe.HitPoint(SpriteImage);
+        if (where is null)
         {
             _catchArmed = true;
             return;
@@ -261,18 +267,17 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
-        BounceOffCursor();
+        BounceOffCursor(where.Value);
     }
 
     /// <summary>
-    /// 커서를 벽처럼 쳐서 튕겨낸다. 때린 자리는 클릭과 똑같이 따지므로 그쪽 <c>beat</c> 그림이
-    /// 뜨고 이펙트도 닿은 자리에서 튄다.
+    /// 커서를 벽처럼 쳐서 튕겨낸다. <paramref name="where"/> 는 커서가 닿은 캐릭터 안 좌표다.
+    /// 때린 자리는 클릭과 똑같이 따지므로 그쪽 <c>beat</c> 그림이 뜨고 이펙트도 닿은 자리에서 튄다.
     /// 튕겨낸 뒤에는 다시 잠가둔다. 커서에서 멀어지는 중이니 곧 벗어나는데, 그전까지 매 프레임
     /// 튕기려 들면 커서에 들러붙은 채로 콤보만 쌓인다.
     /// </summary>
-    private void BounceOffCursor()
+    private void BounceOffCursor(Point where)
     {
-        Point where = Mouse.GetPosition(SpriteImage);
         Size size = SpriteImage.RenderSize;
         Vector away = new Point(size.Width / 2, size.Height / 2) - where;
 
@@ -283,7 +288,7 @@ public partial class MainWindow : Window, ISettingsPreview
         }
 
         _catchArmed = false;
-        Strike(bump, Mouse.GetPosition(this));
+        Strike(bump, SpriteImage.TranslatePoint(where, this));
     }
 
     /// <summary>
