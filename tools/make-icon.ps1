@@ -1,6 +1,7 @@
-﻿# 기본 캐릭터 그림으로 exe 아이콘(.ico)을 만든다. 캐릭터 그림을 바꿀 때만 다시 돌리면 된다.
+﻿# 아이콘 원본 그림으로 exe 아이콘(.ico)을 만든다. 원본을 바꿀 때만 다시 돌리면 된다.
+# 원본은 정사각 투명 PNG 여야 하고, 16px 로 그냥 줄이기만 하므로 작아도 읽히는 형태여야 한다.
 param(
-    [string]$Source = "src\BeatIt\assets\characters\clawd\idle\icons8-clawd-480.png",
+    [string]$Source = "src\BeatIt\assets\beatit-icon.png",
     [string]$Output = "src\BeatIt\assets\beatit.ico"
 )
 
