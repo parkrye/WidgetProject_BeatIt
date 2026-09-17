@@ -7,7 +7,10 @@
         MinWidth="780"
         MinHeight="500"
         WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        ToolTipService.InitialShowDelay="300"
+        ToolTipService.ShowDuration="120000"
+        ToolTipService.ShowOnDisabled="True">
     <Window.Resources>
         <Style TargetType="ToolTip">
             <Setter Property="MaxWidth" Value="380" />
