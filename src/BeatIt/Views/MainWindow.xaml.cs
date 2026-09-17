@@ -100,6 +100,14 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>캐릭터 관리 창을 열기 전에 소리 파일을 놓아준다. 안 그러면 잠겨서 못 뺀다.</summary>
     public void ReleaseAudio() => _spriteSource?.ReleaseAudio();
 
+    /// <summary>테마 관리 창을 열기 전에 글꼴을 놓아준다. 닫고 나면 통째로 다시 읽는다.</summary>
+    public void ReleaseTheme()
+    {
+        _theme = Theme.Empty();
+        Combo.SetTheme(_theme);
+        _effects.SetTheme(_theme);
+    }
+
     /// <summary>관리 창에서 파일을 고쳤다. 경로가 그대로여도 통째로 다시 읽는다.</summary>
     public void ReloadAssets() => ApplySettings(_settings, force: true);
 

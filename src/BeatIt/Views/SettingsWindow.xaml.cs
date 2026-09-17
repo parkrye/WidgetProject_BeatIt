@@ -308,6 +308,9 @@ public partial class SettingsWindow : Window
     {
         ThemeLibrary.EnsureRoot();
 
+        // 위젯이 쥐고 있는 글꼴을 먼저 놓게 한다. 그리는 동안 잠겨 있으면 못 갈아 끼운다.
+        _preview.ReleaseTheme();
+
         string? chosen = (ThemeCombo.SelectedItem as ThemeInfo)?.Path;
         ThemeEditorWindow editor = new(chosen) { Owner = this };
         editor.ShowDialog();
