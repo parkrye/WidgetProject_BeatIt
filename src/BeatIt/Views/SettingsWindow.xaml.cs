@@ -1,8 +1,10 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Threading;
 using BeatIt.Core;
 using BeatIt.Models;
 using BeatIt.Services;
@@ -94,15 +96,31 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        if (_ready && choice.Kind == WanderAreaKind.Custom && _customArea is null && !TryPickArea())
-        {
-            WanderAreaCombo.SelectedItem = _lastAreaChoice;
-            return;
-        }
-
+        AreaChoice previous = _lastAreaChoice;
         _lastAreaChoice = choice;
         RefreshWanderArea();
         Push();
+
+        if (!_ready || choice.Kind != WanderAreaKind.Custom || _customArea is not null)
+        {
+            return;
+        }
+
+        // 여기는 드롭다운이 아직 안 닫힌 자리다. 이대로 창을 숨기면 목록 팝업이 주인을 잃고
+        // 화면 구석에 박힌 채 마우스까지 물고 늘어진다. 콤보가 뒷정리를 끝낸 뒤에 연다.
+        Dispatcher.InvokeAsync(
+            () =>
+            {
+                if (TryPickArea())
+                {
+                    RefreshWanderArea();
+                    Push();
+                    return;
+                }
+
+                WanderAreaCombo.SelectedItem = previous;
+            },
+            DispatcherPriority.Background);
     }
 
     private void OnPickArea(object sender, RoutedEventArgs e)
@@ -119,6 +137,11 @@ public partial class SettingsWindow : Window
     /// <summary>화면을 덮는 오버레이를 띄워 영역을 그리게 한다. 설정 창이 가리면 안 되니 잠깐 숨긴다.</summary>
     private bool TryPickArea()
     {
+        // 열려 있는 목록과 마우스 캡처를 먼저 걷어낸다. 창을 숨기면 소유 팝업도 같이 숨었다가
+        // 다시 보일 때 되살아나는데, WPF 는 이미 닫은 걸로 알고 있어서 닫지도 옮기지도 못한다.
+        WanderAreaCombo.IsDropDownOpen = false;
+        Mouse.Capture(null);
+
         Visibility = Visibility.Hidden;
         try
         {
