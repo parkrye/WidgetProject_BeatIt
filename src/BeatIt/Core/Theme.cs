@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows.Media;
 
 namespace BeatIt.Core;
@@ -36,6 +36,28 @@ public sealed class Theme
     /// <summary>아무것도 없는 테마. 이펙트를 안 띄우고 콤보는 기본 글꼴로 그린다.</summary>
     public static Theme Empty() => new("없음", [], null, null, null);
 
+    /// <summary>폴더만 보고 알아낸 테마의 생김새. 그림은 안 읽는다.</summary>
+    public sealed record Shape(string Name, int EffectCount, bool HasDigits, bool HasFont);
+
+    /// <summary>
+    /// 설정 창 목록에 줄 하나 적자고 그림을 전부 디코드할 일은 아니다.
+    /// 파일이 있는지만 보고 어떤 테마인지 알아본다.
+    /// </summary>
+    public static Shape? Inspect(string folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
+        {
+            return null;
+        }
+
+        string comboFolder = Path.Combine(folder, "combo");
+        return new Shape(
+            new DirectoryInfo(folder).Name,
+            ImagePathsIn(Path.Combine(folder, "effects")).Count,
+            HasAllDigits(comboFolder),
+            HasFont(comboFolder));
+    }
+
     public static Theme? Load(string folder)
     {
         if (string.IsNullOrWhiteSpace(folder) || !Directory.Exists(folder))
@@ -56,19 +78,9 @@ public sealed class Theme
 
     private static IReadOnlyList<ImageSource> LoadEffects(string folder)
     {
-        if (!Directory.Exists(folder))
-        {
-            return [];
-        }
-
         List<ImageSource> effects = [];
-        foreach (string path in Directory.EnumerateFiles(folder).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
+        foreach (string path in ImagePathsIn(folder))
         {
-            if (!CharacterFolder.Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
             // 이펙트는 동시에 여러 개가 떠서 각자 재생 상태를 가질 수 없다. GIF 는 첫 프레임만 쓴다.
             ImageSource? image = LoadImage(path);
             if (image is not null)
@@ -79,6 +91,35 @@ public sealed class Theme
 
         return effects;
     }
+
+    private static IReadOnlyList<string> ImagePathsIn(string folder)
+    {
+        if (!Directory.Exists(folder))
+        {
+            return [];
+        }
+
+        return
+        [
+            .. Directory
+                .EnumerateFiles(folder)
+                .Where(path => CharacterFolder.Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase))
+                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+        ];
+    }
+
+    /// <summary>0~9 가 다 놓여 있는지만 본다. 읽히는지는 <see cref="LoadDigits"/> 가 따진다.</summary>
+    private static bool HasAllDigits(string folder) =>
+        Directory.Exists(folder)
+        && Enumerable
+            .Range(0, 10)
+            .All(number => CharacterFolder.Extensions.Any(extension => File.Exists(Path.Combine(folder, number + extension))));
+
+    private static bool HasFont(string folder) =>
+        Directory.Exists(folder)
+        && Directory
+            .EnumerateFiles(folder)
+            .Any(path => FontExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase));
 
     /// <summary>0~9 가 다 있어야 숫자 그림으로 그린다. 하나라도 빠지면 글자로 떨어진다.</summary>
     private static IReadOnlyList<ImageSource>? LoadDigits(string folder)
@@ -122,16 +163,7 @@ public sealed class Theme
 
     private static FontFamily? LoadFont(string folder)
     {
-        if (!Directory.Exists(folder))
-        {
-            return null;
-        }
-
-        bool hasFont = Directory
-            .EnumerateFiles(folder)
-            .Any(path => FontExtensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase));
-
-        if (!hasFont)
+        if (!HasFont(folder))
         {
             return null;
         }

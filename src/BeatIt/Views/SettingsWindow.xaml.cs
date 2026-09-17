@@ -18,8 +18,10 @@ public partial class SettingsWindow : Window
     private readonly ISettingsPreview _preview;
     private readonly ObservableCollection<CharacterInfo> _characters;
     private readonly ObservableCollection<ThemeInfo> _themes;
-    private readonly string? _defaultCharacter = CharacterLibrary.DefaultPath;
-    private readonly string? _defaultTheme = ThemeLibrary.DefaultPath;
+
+    /// <summary>목록 맨 앞이 곧 기본값이다. 같은 걸 물어보자고 폴더를 또 훑지 않는다.</summary>
+    private readonly string? _defaultCharacter;
+    private readonly string? _defaultTheme;
 
     private readonly AreaChoice[] _areaChoices =
     [
@@ -41,6 +43,8 @@ public partial class SettingsWindow : Window
         _preview = preview;
         _characters = [.. CharacterLibrary.Scan()];
         _themes = [.. ThemeLibrary.Scan()];
+        _defaultCharacter = _characters.FirstOrDefault()?.Path;
+        _defaultTheme = _themes.FirstOrDefault()?.Path;
         CharacterCombo.ItemsSource = _characters;
         ThemeCombo.ItemsSource = _themes;
 

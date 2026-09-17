@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text;
 using BeatIt.Core;
 
@@ -80,27 +80,28 @@ public static class CharacterLibrary
         "BeatIt",
         "characters");
 
-    public static string? DefaultPath => Scan().FirstOrDefault()?.Path;
+    /// <summary>기본 캐릭터. 첫 폴더 하나만 읽어보면 되니 목록을 다 훑지 않는다.</summary>
+    public static string? DefaultPath => Enumerate().FirstOrDefault()?.Path;
 
     /// <summary>캐릭터 폴더를 훑어 쓸 수 있는 것만 돌려준다.</summary>
-    public static IReadOnlyList<CharacterInfo> Scan()
+    public static IReadOnlyList<CharacterInfo> Scan() => [.. Enumerate()];
+
+    /// <summary>이름순으로 하나씩 읽어본다. 게으르게 돌기 때문에 첫 하나만 필요하면 거기서 멈춘다.</summary>
+    private static IEnumerable<CharacterInfo> Enumerate()
     {
         if (!Directory.Exists(UserRoot))
         {
-            return [];
+            yield break;
         }
 
-        List<CharacterInfo> found = [];
         foreach (string folder in Directory.EnumerateDirectories(UserRoot).OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase))
         {
             CharacterInfo? info = Describe(folder);
             if (info is not null)
             {
-                found.Add(info);
+                yield return info;
             }
         }
-
-        return found;
     }
 
     /// <summary>쓸 이미지가 없는 폴더면 null.</summary>
