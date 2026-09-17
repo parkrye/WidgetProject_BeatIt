@@ -4,3 +4,7 @@ obj/
 *.user
 *.suo
 artifacts/
+
+# 배포용 exe 는 저장소에 담지 않는다. publish.ps1 로 만들고 GitHub Releases 에 올린다.
+BeatIt.exe
+BeatIt-standalone.exe
