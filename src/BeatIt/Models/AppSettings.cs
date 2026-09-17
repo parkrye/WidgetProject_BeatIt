@@ -1,4 +1,4 @@
-using BeatIt.Core;
+﻿using BeatIt.Core;
 
 namespace BeatIt.Models;
 
@@ -121,6 +121,11 @@ public sealed class AppSettings
 
     /// <summary>이 속도 밑으로 떨어지면 다 왔다고 보고 멈춘다(px/s).</summary>
     public double ThrowStopSpeed { get; set; } = 40;
+
+    /// <summary>
+    /// 날아가다 커서에 닿았을 때. 끄면 그 자리에 서고, 켜면 커서를 벽처럼 여겨 튕겨 나간다.
+    /// </summary>
+    public bool ThrowBounceOffCursor { get; set; }
 
     /// <summary>콤보 크기와 색이 한 계단 오르는 간격. 기본 50 이면 50, 100, 150... 에서 바뀐다.</summary>
     public int ComboMilestone { get; set; } = 50;
