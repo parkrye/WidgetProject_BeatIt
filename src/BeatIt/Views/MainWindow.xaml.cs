@@ -21,6 +21,9 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>이펙트가 캐릭터를 덮지 않도록 가로 길이의 절반 이하로 잡는다.</summary>
     private const double EffectSizeRatio = 0.45;
 
+    /// <summary>이만큼 움직여야 이동 방향을 다시 따진다. 프레임마다 따지면 그림이 깜빡인다.</summary>
+    private const double MoveDirectionDistance = 6;
+
     private readonly SettingsService _settingsService;
     private readonly HitAnimator _hitAnimator = new();
     private readonly DragStretchAnimator _dragAnimator = new();
@@ -32,6 +35,8 @@ public partial class MainWindow : Window, ISettingsPreview
     private ISpriteSource? _spriteSource;
     private Theme? _theme;
     private TimeSpan _lastRenderTime;
+    private FacingDirection _moveDirection = FacingDirection.Default;
+    private Vector _motion;
     private Point _grabPoint;
     private bool _pressed;
     private bool _dragging;
@@ -78,7 +83,8 @@ public partial class MainWindow : Window, ISettingsPreview
         Walk(delta);
         _hitAnimator.Update(delta);
         _dragAnimator.Update(delta);
-        _spriteSource!.Update(delta, _dragging || _wander.IsMoving ? SpriteState.Moving : SpriteState.Idle);
+        SpriteState state = _dragging || _wander.IsMoving ? SpriteState.Moving : SpriteState.Idle;
+        _spriteSource!.Update(delta, state, _moveDirection);
         DragRoot.RenderTransformOrigin = _dragAnimator.Anchor;
 
         if (_comboCounter.ExpireIfTimedOut())
@@ -110,14 +116,32 @@ public partial class MainWindow : Window, ISettingsPreview
 
         Left += step.X;
         Top += step.Y;
+        TrackMotion(step);
         _dragAnimator.Grab(new Point(0.5, 0.35));
         _dragAnimator.Pull(step * 0.4);
+    }
+
+    /// <summary>
+    /// 움직인 거리를 모았다가 일정 거리를 넘으면 그때 방향을 정한다.
+    /// 한 프레임 이동량은 1px도 안 될 만큼 작아서 그대로 쓰면 방향이 계속 뒤집힌다.
+    /// </summary>
+    private void TrackMotion(Vector step)
+    {
+        _motion += step;
+        if (_motion.Length < MoveDirectionDistance)
+        {
+            return;
+        }
+
+        _moveDirection = Facing.FromMotion(_motion, _moveDirection);
+        _motion = default;
     }
 
     private void OnSpriteMouseDown(object sender, MouseButtonEventArgs e)
     {
         _pressed = true;
         _dragging = false;
+        _motion = default;
         _grabPoint = e.GetPosition(this);
         SpriteImage.CaptureMouse();
     }
@@ -144,6 +168,7 @@ public partial class MainWindow : Window, ISettingsPreview
         // 창은 커서를 그대로 따라가고, 안쪽 그림만 뒤처지면서 늘어난다.
         Left += delta.X;
         Top += delta.Y;
+        TrackMotion(delta);
         _dragAnimator.Pull(delta);
     }
 
@@ -159,20 +184,21 @@ public partial class MainWindow : Window, ISettingsPreview
 
         if (!_dragging)
         {
-            Hit(e.GetPosition(this));
+            Hit(e.GetPosition(this), Facing.FromHit(e.GetPosition(SpriteImage), SpriteImage.RenderSize));
             return;
         }
 
         _dragging = false;
+        _motion = default;
         _settings.WindowLeft = Left;
         _settings.WindowTop = Top;
         await _settingsService.SaveAsync(_settings);
     }
 
-    private void Hit(Point where)
+    private void Hit(Point where, FacingDirection direction)
     {
         int combo = _comboCounter.Register();
-        _spriteSource!.OnHit();
+        _spriteSource!.OnHit(direction);
         _hitAnimator.Hit(combo);
         Combo.Show(combo);
         _effects.Spawn(where, SpriteImage.Width * EffectSizeRatio, combo);
@@ -245,6 +271,8 @@ public partial class MainWindow : Window, ISettingsPreview
         }
 
         _spriteSource!.SetIdleInterval(next.IdleMinMs / 1000.0, next.IdleMaxMs / 1000.0);
+        _spriteSource.SetIdleSoundInterval(next.IdleSoundMinMs / 1000.0, next.IdleSoundMaxMs / 1000.0);
+        _spriteSource.SetVolume(next.SoundVolume, next.SoundMuted);
         _comboCounter.Timeout = TimeSpan.FromMilliseconds(next.ComboTimeoutMs);
         _wander.Enabled = next.Wander && !next.PositionLocked;
         _effects.Enabled = next.EffectsEnabled;

@@ -1,18 +1,74 @@
 using System.IO;
+using System.Text;
 using BeatIt.Core;
 
 namespace BeatIt.Services;
 
 /// <summary>캐릭터 폴더 하나의 요약. 설정 창 목록에 쓴다.</summary>
-public sealed record CharacterInfo(string Name, string Path, int IdleCount, int MoveCount, int BeatCount)
+public sealed record CharacterInfo(
+    string Name,
+    string Path,
+    int IdleCount,
+    int MoveCount,
+    IReadOnlyList<FacingDirection> MoveDirections,
+    int BeatCount,
+    IReadOnlyList<FacingDirection> BeatDirections,
+    int SoundCount)
 {
-    /// <summary>move/beat 폴더가 없어 idle 로 대신하는 경우 개수를 0으로 채워 보낸다.</summary>
-    public string Summary =>
-        $"idle {IdleCount}장 / move {Describe(MoveCount)} / beat {Describe(BeatCount)}";
+    private static readonly (FacingDirection Direction, string Mark)[] Marks =
+    [
+        (FacingDirection.Left, "←"),
+        (FacingDirection.Right, "→"),
+        (FacingDirection.Up, "↑"),
+        (FacingDirection.Down, "↓"),
+    ];
+
+    /// <summary>move/beat 폴더가 없어 idle 로 대신하는 경우 "없음"으로 적는다.</summary>
+    public string Summary
+    {
+        get
+        {
+            StringBuilder text = new();
+            text.Append("idle ").Append(IdleCount).Append("장 / move ");
+            text.Append(Describe(MoveCount, MoveDirections));
+            text.Append(" / beat ").Append(Describe(BeatCount, BeatDirections));
+            if (SoundCount > 0)
+            {
+                text.Append(" / 소리 ").Append(SoundCount).Append('개');
+            }
+
+            return text.ToString();
+        }
+    }
 
     public override string ToString() => Name;
 
-    private static string Describe(int count) => count > 0 ? $"{count}장" : "없음(idle 사용)";
+    private static string Describe(int count, IReadOnlyList<FacingDirection> directions)
+    {
+        if (count == 0)
+        {
+            return "없음(idle 사용)";
+        }
+
+        StringBuilder text = new();
+        text.Append(count).Append('장');
+
+        StringBuilder marks = new();
+        foreach ((FacingDirection direction, string mark) in Marks)
+        {
+            if (directions.Contains(direction))
+            {
+                marks.Append(mark);
+            }
+        }
+
+        if (marks.Length > 0)
+        {
+            text.Append(' ').Append('(').Append(marks).Append(')');
+        }
+
+        return text.ToString();
+    }
 }
 
 /// <summary>기본 제공 캐릭터와 사용자가 넣어둔 캐릭터를 찾아준다.</summary>
@@ -56,9 +112,15 @@ public static class CharacterLibrary
             return null;
         }
 
-        int move = ReferenceEquals(paths.Move, paths.Idle) ? 0 : paths.Move.Count;
-        int beat = ReferenceEquals(paths.Beat, paths.Idle) ? 0 : paths.Beat.Count;
-        return new CharacterInfo(new DirectoryInfo(folder).Name, Path.GetFullPath(folder), paths.Idle.Count, move, beat);
+        return new CharacterInfo(
+            new DirectoryInfo(folder).Name,
+            Path.GetFullPath(folder),
+            paths.Idle.Count,
+            paths.Move.Count,
+            paths.Move.Directions,
+            paths.Beat.Count,
+            paths.Beat.Directions,
+            paths.Sounds.Count);
     }
 
     public static void EnsureUserRoot() => Directory.CreateDirectory(UserRoot);

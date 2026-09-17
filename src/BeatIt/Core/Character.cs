@@ -2,32 +2,43 @@ using System.IO;
 
 namespace BeatIt.Core;
 
-/// <summary>상태별 이미지 묶음 하나. 폴더에서 읽어 들인다.</summary>
+/// <summary>상태별 이미지와 소리 묶음 하나. 폴더에서 읽어 들인다.</summary>
 public sealed class Character : IDisposable
 {
     private Character(
         string name,
         IReadOnlyList<Sprite> idle,
-        IReadOnlyList<Sprite> move,
-        IReadOnlyList<Sprite> beat)
+        DirectionalSprites move,
+        DirectionalSprites beat,
+        CharacterAudio audio)
     {
         Name = name;
         Idle = idle;
         Move = move;
         Beat = beat;
+        Audio = audio;
 
         // move/beat 가 비어서 idle 을 대신 쓰는 경우가 있어 같은 Sprite 가 여러 목록에 들어간다.
         // 구독과 정리는 중복 없이 한 번씩만 해야 한다.
-        All = [.. idle.Concat(move).Concat(beat).Distinct(ReferenceEqualityComparer.Instance).Cast<Sprite>()];
+        All =
+        [
+            .. idle
+                .Concat(move.Own)
+                .Concat(beat.Own)
+                .Distinct(ReferenceEqualityComparer.Instance)
+                .Cast<Sprite>()
+        ];
     }
 
     public string Name { get; }
 
     public IReadOnlyList<Sprite> Idle { get; }
 
-    public IReadOnlyList<Sprite> Move { get; }
+    public DirectionalSprites Move { get; }
 
-    public IReadOnlyList<Sprite> Beat { get; }
+    public DirectionalSprites Beat { get; }
+
+    public CharacterAudio Audio { get; }
 
     /// <summary>중복 없는 전체 스프라이트. 구독/해제와 정리에 쓴다.</summary>
     public IReadOnlyList<Sprite> All { get; }
@@ -47,18 +58,25 @@ public sealed class Character : IDisposable
             return null;
         }
 
-        List<Sprite> move = ReferenceEquals(paths.Move, paths.Idle) ? idle : LoadAll(paths.Move);
-        List<Sprite> beat = ReferenceEquals(paths.Beat, paths.Idle) ? idle : LoadAll(paths.Beat);
+        CharacterAudio audio = new(
+            SoundBank.Load(paths.Sounds.Idle),
+            SoundBank.Load(paths.Sounds.Move),
+            SoundBank.Load(paths.Sounds.Beat));
 
         string name = new DirectoryInfo(folder).Name;
-        return new Character(name, idle, move.Count > 0 ? move : idle, beat.Count > 0 ? beat : idle);
+        return new Character(name, idle, LoadDirectional(paths.Move, idle), LoadDirectional(paths.Beat, idle), audio);
     }
 
     /// <summary>캐릭터를 못 찾았을 때 대신 맞아줄 기본 샌드백.</summary>
     public static Character Placeholder()
     {
         List<Sprite> only = [Sprite.FromImage(PlaceholderSprite.Create())];
-        return new Character("기본 샌드백", only, only, only);
+        return new Character(
+            "기본 샌드백",
+            only,
+            DirectionalSprites.Fallback(only),
+            DirectionalSprites.Fallback(only),
+            CharacterAudio.Silent);
     }
 
     public void Dispose()
@@ -67,6 +85,23 @@ public sealed class Character : IDisposable
         {
             sprite.Dispose();
         }
+
+        Audio.Dispose();
+    }
+
+    private static DirectionalSprites LoadDirectional(DirectionalPaths paths, IReadOnlyList<Sprite> fallback)
+    {
+        Dictionary<FacingDirection, IReadOnlyList<Sprite>> loaded = [];
+        foreach ((FacingDirection direction, IReadOnlyList<string> files) in paths.ByDirection)
+        {
+            List<Sprite> sprites = LoadAll(files);
+            if (sprites.Count > 0)
+            {
+                loaded[direction] = sprites;
+            }
+        }
+
+        return new DirectionalSprites(loaded, fallback);
     }
 
     private static List<Sprite> LoadAll(IReadOnlyList<string> paths)

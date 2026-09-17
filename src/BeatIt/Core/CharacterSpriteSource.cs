@@ -3,8 +3,8 @@ using System.Windows.Media;
 namespace BeatIt.Core;
 
 /// <summary>
-/// 상태에 맞는 그림을 골라준다.
-/// 가만히 있으면 idle 중 하나를 랜덤한 주기로 갈아 끼우고, 맞으면 beat, 끌려가면 move 로 바뀐다.
+/// 상태와 방향에 맞는 그림을 골라주고, 그 행동에 붙은 소리를 울린다.
+/// 가만히 있으면 idle 중 하나를 랜덤한 주기로 갈아 끼우고, 맞으면 beat, 끌려가거나 걸어가면 move 로 바뀐다.
 /// </summary>
 public sealed class CharacterSpriteSource : ISpriteSource
 {
@@ -15,10 +15,14 @@ public sealed class CharacterSpriteSource : ISpriteSource
 
     private Sprite _current;
     private SpriteState _state = SpriteState.Idle;
+    private IReadOnlyList<Sprite>? _moveCandidates;
     private double _idleRemaining;
     private double _beatRemaining;
     private double _idleMinSeconds;
     private double _idleMaxSeconds;
+    private double _idleSoundRemaining;
+    private double _idleSoundMinSeconds = 10;
+    private double _idleSoundMaxSeconds = 30;
 
     public CharacterSpriteSource(Character character, double idleMinSeconds, double idleMaxSeconds)
     {
@@ -33,6 +37,7 @@ public sealed class CharacterSpriteSource : ISpriteSource
         _current = _character.Idle[0];
         _current.Play();
         _idleRemaining = NextIdleDelay();
+        _idleSoundRemaining = NextIdleSoundDelay();
     }
 
     public event EventHandler? CurrentChanged;
@@ -45,17 +50,29 @@ public sealed class CharacterSpriteSource : ISpriteSource
         _idleMaxSeconds = Math.Max(_idleMinSeconds, maxSeconds);
     }
 
-    public void OnHit()
+    public void SetIdleSoundInterval(double minSeconds, double maxSeconds)
     {
-        _beatRemaining = BeatHoldSeconds;
-        Switch(Pick(_character.Beat));
+        _idleSoundMinSeconds = Math.Max(1, minSeconds);
+        _idleSoundMaxSeconds = Math.Max(_idleSoundMinSeconds, maxSeconds);
     }
 
-    public void Update(double deltaSeconds, SpriteState state)
+    public void SetVolume(double volume, bool muted) => _character.Audio.SetVolume(volume, muted);
+
+    public void OnHit(FacingDirection direction)
+    {
+        _beatRemaining = BeatHoldSeconds;
+
+        // 맞았으면 대기 소리를 낼 때가 아니다. 다음 대기까지 미뤄둔다.
+        _idleSoundRemaining = NextIdleSoundDelay();
+        Switch(Pick(_character.Beat.For(direction)));
+        _character.Audio.Beat.Play();
+    }
+
+    public void Update(double deltaSeconds, SpriteState state, FacingDirection direction)
     {
         if (state == SpriteState.Moving)
         {
-            EnterMoving();
+            EnterMoving(direction);
             return;
         }
 
@@ -63,6 +80,7 @@ public sealed class CharacterSpriteSource : ISpriteSource
         {
             // 끌고 가다 놓았다. 맞은 상태로 돌아갈 이유는 없으니 바로 idle 로.
             _state = SpriteState.Idle;
+            _moveCandidates = null;
             _beatRemaining = 0;
             SwitchToIdle();
             return;
@@ -78,6 +96,8 @@ public sealed class CharacterSpriteSource : ISpriteSource
 
             return;
         }
+
+        TickIdleSound(deltaSeconds);
 
         _idleRemaining -= deltaSeconds;
         if (_idleRemaining <= 0)
@@ -96,16 +116,30 @@ public sealed class CharacterSpriteSource : ISpriteSource
         _character.Dispose();
     }
 
-    private void EnterMoving()
+    /// <summary>
+    /// 방향이 바뀌면 그 방향 그림으로 갈아 끼운다.
+    /// 방향 폴더가 없어 어차피 같은 후보로 떨어지면 아무것도 안 한다. 걸을 때마다 그림이 새로 뽑히면 산만하다.
+    /// </summary>
+    private void EnterMoving(FacingDirection direction)
     {
-        if (_state == SpriteState.Moving)
+        IReadOnlyList<Sprite> next = _character.Move.For(direction);
+        if (_state == SpriteState.Moving && ReferenceEquals(next, _moveCandidates))
         {
             return;
         }
 
+        bool started = _state != SpriteState.Moving;
         _state = SpriteState.Moving;
+        _moveCandidates = next;
         _beatRemaining = 0;
-        Switch(Pick(_character.Move));
+        _idleSoundRemaining = NextIdleSoundDelay();
+        Switch(Pick(next));
+
+        // 걷는 소리는 움직이기 시작할 때 한 번만. 방향이 꺾일 때마다 다시 울리면 시끄럽다.
+        if (started)
+        {
+            _character.Audio.Move.Play();
+        }
     }
 
     private void SwitchToIdle()
@@ -114,8 +148,28 @@ public sealed class CharacterSpriteSource : ISpriteSource
         Switch(Pick(_character.Idle));
     }
 
+    private void TickIdleSound(double deltaSeconds)
+    {
+        if (_character.Audio.Idle.Count == 0)
+        {
+            return;
+        }
+
+        _idleSoundRemaining -= deltaSeconds;
+        if (_idleSoundRemaining > 0)
+        {
+            return;
+        }
+
+        _idleSoundRemaining = NextIdleSoundDelay();
+        _character.Audio.Idle.Play();
+    }
+
     private double NextIdleDelay() =>
-        _idleMinSeconds + _random.NextDouble() * (_idleMaxSeconds - _idleMinSeconds);
+        _idleMinSeconds + (_random.NextDouble() * (_idleMaxSeconds - _idleMinSeconds));
+
+    private double NextIdleSoundDelay() =>
+        _idleSoundMinSeconds + (_random.NextDouble() * (_idleSoundMaxSeconds - _idleSoundMinSeconds));
 
     /// <summary>같은 그림이 연달아 나오면 바뀐 티가 안 나서, 장수가 넉넉하면 현재 그림은 피한다.</summary>
     private Sprite Pick(IReadOnlyList<Sprite> candidates)
