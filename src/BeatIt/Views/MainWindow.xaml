@@ -1,4 +1,4 @@
-<Window x:Class="BeatIt.Views.MainWindow"
+﻿<Window x:Class="BeatIt.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="clr-namespace:BeatIt.Controls"
@@ -22,6 +22,7 @@
                    MouseLeftButtonDown="OnSpriteMouseDown"
                    MouseMove="OnSpriteMouseMove"
                    MouseLeftButtonUp="OnSpriteMouseUp"
+                   LostMouseCapture="OnSpriteLostCapture"
                    ContextMenuOpening="OnContextMenuOpening">
                 <Image.ContextMenu>
                     <ContextMenu>

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -178,25 +178,43 @@ public partial class MainWindow : Window, ISettingsPreview
 
     private async void OnSpriteMouseUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_pressed)
+        bool pressed = _pressed;
+        bool dragged = _dragging;
+        ReleaseGrab();
+
+        if (!pressed)
         {
             return;
         }
 
-        _pressed = false;
-        SpriteImage.ReleaseMouseCapture();
-
-        if (!_dragging)
+        if (!dragged)
         {
             Hit(e.GetPosition(this), Facing.FromHit(e.GetPosition(SpriteImage), SpriteImage.RenderSize));
             return;
         }
 
-        _dragging = false;
-        _motion = default;
         _settings.WindowLeft = Left;
         _settings.WindowTop = Top;
         await _settingsService.SaveAsync(_settings);
+    }
+
+    /// <summary>
+    /// 캡처를 우클릭이나 다른 창에 뺏기면 여기로 온다. 누른 상태를 그대로 두면
+    /// 위젯이 커서를 따라다니거나, 눌린 줄 알고 영영 안 걷는다.
+    /// </summary>
+    private void OnSpriteLostCapture(object sender, MouseEventArgs e) => ReleaseGrab();
+
+    /// <summary>붙잡은 상태를 되돌리고 캡처를 놓는다. 몇 번을 불러도 괜찮다.</summary>
+    private void ReleaseGrab()
+    {
+        _pressed = false;
+        _dragging = false;
+        _motion = default;
+
+        if (SpriteImage.IsMouseCaptured)
+        {
+            SpriteImage.ReleaseMouseCapture();
+        }
     }
 
     private void Hit(Point where, FacingDirection direction)
@@ -211,7 +229,7 @@ public partial class MainWindow : Window, ISettingsPreview
 
     private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        _pressed = false;
+        ReleaseGrab();
         WanderMenuItem.IsChecked = _settings.Wander;
         TopmostMenuItem.IsChecked = _settings.Topmost;
         LockMenuItem.IsChecked = _settings.PositionLocked;
