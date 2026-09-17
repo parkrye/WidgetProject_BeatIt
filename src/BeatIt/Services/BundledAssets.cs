@@ -35,6 +35,43 @@ public static class BundledAssets
     /// 버전마다 한 번만 푼다. 마커를 두지 않으면 사용자가 지운 기본 에셋이 실행할 때마다 되살아난다.
     /// 이미 있는 파일은 건드리지 않아서 고쳐둔 그림도 그대로 남는다.
     /// </summary>
+    /// <summary>
+    /// exe 안에 들어 있는 기본 캐릭터 이름. 이건 버전마다 앱이 다시 풀어놓는 것이라
+    /// 편집기에서 고치지 못하게 잠그고, 고치고 싶으면 복사본을 뜨게 한다.
+    /// </summary>
+    public static IReadOnlySet<string> BundledCharacters => _bundledCharacters ??= ReadTopLevelNames("BeatIt.characters.zip");
+
+    private static IReadOnlySet<string>? _bundledCharacters;
+
+    private static IReadOnlySet<string> ReadTopLevelNames(string resourceName)
+    {
+        HashSet<string> names = new(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            using Stream? stream = typeof(BundledAssets).Assembly.GetManifestResourceStream(resourceName);
+            if (stream is null)
+            {
+                return names;
+            }
+
+            using ZipArchive archive = new(stream, ZipArchiveMode.Read);
+            foreach (ZipArchiveEntry entry in archive.Entries)
+            {
+                string top = entry.FullName.Split('/')[0];
+                if (top.Length > 0)
+                {
+                    names.Add(top);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException)
+        {
+            // 못 읽으면 잠그는 것 없이 간다. 목록을 못 읽었다고 편집기가 안 뜰 일은 아니다.
+        }
+
+        return names;
+    }
+
     public static void EnsureExtracted()
     {
         RenameOldCharacters();

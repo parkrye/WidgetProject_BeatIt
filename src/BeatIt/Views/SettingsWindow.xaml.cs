@@ -251,23 +251,37 @@ public partial class SettingsWindow : Window
         Push();
     }
 
-    private void OnAddCharacter(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// 캐릭터를 만들고 고치는 창을 연다. 닫고 나면 목록이 달라져 있을 수 있어 다시 읽는다.
+    /// 파일을 직접 손대는 일이라 "만지면 즉시 반영" 하는 이 창과 성질이 달라 따로 뺐다.
+    /// </summary>
+    private void OnManageCharacters(object sender, RoutedEventArgs e)
     {
-        string? folder = AskFolder("캐릭터 폴더 고르기");
-        if (folder is null)
+        CharacterLibrary.EnsureUserRoot();
+
+        string? chosen = (CharacterCombo.SelectedItem as CharacterInfo)?.Path;
+        CharacterEditorWindow editor = new(chosen) { Owner = this };
+        editor.ShowDialog();
+
+        ReloadCharacters(editor.SelectedPath ?? chosen);
+    }
+
+    /// <summary>편집기가 만들고 지운 걸 목록에 반영한다. 쓰던 캐릭터가 사라졌으면 기본 캐릭터로 떨어진다.</summary>
+    private void ReloadCharacters(string? select)
+    {
+        _characters.Clear();
+        foreach (CharacterInfo info in CharacterLibrary.Scan())
         {
-            return;
+            _characters.Add(info);
         }
 
-        CharacterInfo? info = CharacterLibrary.Describe(folder);
-        if (info is null)
-        {
-            Complain("그 폴더에서 쓸 이미지를 못 찾았다.\nidle / move / beat 하위 폴더에 이미지를 넣거나, 폴더에 이미지를 바로 넣어야 한다.");
-            return;
-        }
+        CharacterCombo.SelectedItem =
+            _characters.FirstOrDefault(character => SamePath(character.Path, select))
+            ?? _characters.FirstOrDefault(character => SamePath(character.Path, _defaultCharacter))
+            ?? _characters.FirstOrDefault();
 
-        CharacterInfo existing = _characters.FirstOrDefault(c => SamePath(c.Path, info.Path)) ?? Add(_characters, info);
-        CharacterCombo.SelectedItem = existing;
+        // 고른 게 그대로면 SelectionChanged 가 안 울린다. 요약과 미리보기는 직접 챙긴다.
+        OnCharacterChanged(this, null!);
     }
 
     private void OnAddTheme(object sender, RoutedEventArgs e)
