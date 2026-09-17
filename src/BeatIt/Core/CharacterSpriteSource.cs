@@ -61,21 +61,21 @@ public sealed class CharacterSpriteSource : ISpriteSource
 
     public void ReleaseAudio() => _character.ReleaseAudio();
 
-    public void OnHit(FacingDirection direction)
+    public void OnHit(Aim aim)
     {
         _beatRemaining = _beatHoldSeconds;
 
         // 맞았으면 대기 소리를 낼 때가 아니다. 다음 대기까지 미뤄둔다.
         _idleSoundRemaining = NextIdleSoundDelay();
-        Switch(Pick(_character.Beat.For(direction)));
+        Switch(Pick(_character.Beat.For(aim)));
         _character.Audio.Beat.Play();
     }
 
-    public void Update(double deltaSeconds, SpriteState state, FacingDirection direction)
+    public void Update(double deltaSeconds, SpriteState state, Aim aim)
     {
         if (state == SpriteState.Moving)
         {
-            EnterMoving(direction);
+            EnterMoving(aim);
             return;
         }
 
@@ -120,12 +120,12 @@ public sealed class CharacterSpriteSource : ISpriteSource
     }
 
     /// <summary>
-    /// 방향이 바뀌면 그 방향 그림으로 갈아 끼운다.
+    /// 가는 쪽이 바뀌면 그쪽 그림으로 갈아 끼운다.
     /// 방향 폴더가 없어 어차피 같은 후보로 떨어지면 아무것도 안 한다. 걸을 때마다 그림이 새로 뽑히면 산만하다.
     /// </summary>
-    private void EnterMoving(FacingDirection direction)
+    private void EnterMoving(Aim aim)
     {
-        IReadOnlyList<Sprite> next = _character.Move.For(direction);
+        IReadOnlyList<Sprite> next = _character.Move.For(aim);
         if (_state == SpriteState.Moving && ReferenceEquals(next, _moveCandidates))
         {
             return;

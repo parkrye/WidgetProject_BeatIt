@@ -53,7 +53,7 @@ public partial class MainWindow : Window, ISettingsPreview
     private ISpriteSource? _spriteSource;
     private Theme? _theme;
     private TimeSpan _lastRenderTime;
-    private FacingDirection _moveDirection = FacingDirection.Default;
+    private Aim _moveDirection = Aim.None;
     private Vector _motion;
     private Vector _pendingStep;
     private double _sinceMove;
@@ -341,13 +341,13 @@ public partial class MainWindow : Window, ISettingsPreview
     }
 
     /// <summary>벽에 닿은 쪽의 캐릭터 가장자리. 이펙트가 부딪힌 자리에서 튀어야 한다.</summary>
-    private Point EdgeToward(FacingDirection side)
+    private Point EdgeToward(Aim side)
     {
         Point center = new(Width / 2, Height / 2);
         double halfWidth = SpriteImage.Width / 2;
         double halfHeight = SpriteImage.Height / 2;
 
-        return side switch
+        return side.Primary switch
         {
             FacingDirection.Left => new Point(center.X - halfWidth, center.Y),
             FacingDirection.Right => new Point(center.X + halfWidth, center.Y),
@@ -544,10 +544,10 @@ public partial class MainWindow : Window, ISettingsPreview
         return _settingsService.SaveAsync(_settings);
     }
 
-    private void Hit(Point where, FacingDirection direction)
+    private void Hit(Point where, Aim aim)
     {
         int combo = _comboCounter.Register();
-        _spriteSource!.OnHit(direction);
+        _spriteSource!.OnHit(aim);
         _hitAnimator.Hit(combo);
         _effects.Spawn(where, SpriteImage.Width * EffectSizeRatio, combo);
         _wander.Suspend(_settings.HitRestMs / 1000.0);

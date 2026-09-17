@@ -20,11 +20,11 @@ public interface ISpriteSource : IDisposable
     /// <summary>그릴 그림이 바뀌었을 때 발생한다. 이미지 교체와 GIF 프레임 진행 둘 다 해당한다.</summary>
     event EventHandler? CurrentChanged;
 
-    /// <summary>한 대 맞았다. <paramref name="direction"/> 은 캐릭터 어느 쪽을 때렸는지.</summary>
-    void OnHit(FacingDirection direction);
+    /// <summary>한 대 맞았다. <paramref name="aim"/> 은 캐릭터 어느 쪽을 때렸는지.</summary>
+    void OnHit(Aim aim);
 
-    /// <summary>프레임마다 호출한다. 시간이 흐르고 상태와 진행 방향이 바뀐 걸 알린다.</summary>
-    void Update(double deltaSeconds, SpriteState state, FacingDirection direction);
+    /// <summary>프레임마다 호출한다. 시간이 흐르고 상태와 가는 쪽이 바뀐 걸 알린다.</summary>
+    void Update(double deltaSeconds, SpriteState state, Aim aim);
 
     /// <summary>대기 중 그림을 갈아 끼우는 간격. 설정에서 바꾸면 다시 불러온다.</summary>
     void SetIdleInterval(double minSeconds, double maxSeconds);
