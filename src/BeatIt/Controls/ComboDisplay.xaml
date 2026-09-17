@@ -9,11 +9,14 @@
             <TranslateTransform x:Name="Offset" X="0" Y="0" />
         </TransformGroup>
     </UserControl.RenderTransform>
+
+    <!-- 밑변이 기준점이다. 튀어오를 때 위로만 커져야 캐릭터를 안 덮는다. -->
     <UserControl.RenderTransformOrigin>
-        <Point X="0.5" Y="0.5" />
+        <Point X="0.5" Y="1" />
     </UserControl.RenderTransformOrigin>
 
-    <StackPanel HorizontalAlignment="Center">
+    <!-- 창이 내준 자리의 바닥에 붙는다. 그 바닥이 곧 캐릭터 머리 위다. -->
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Bottom">
         <StackPanel.Effect>
             <DropShadowEffect BlurRadius="10" ShadowDepth="0" Color="#000000" Opacity="0.95" />
         </StackPanel.Effect>

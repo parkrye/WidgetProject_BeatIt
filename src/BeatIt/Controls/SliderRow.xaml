@@ -1,0 +1,35 @@
+<UserControl x:Class="BeatIt.Controls.SliderRow"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{Binding LabelWidth, ElementName=Root}" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Column="0"
+                   Text="{Binding Label, ElementName=Root}"
+                   VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"
+                   Margin="0,7,10,0" />
+
+        <Slider x:Name="Bar"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Margin="0,7,0,0"
+                IsSnapToTickEnabled="True"
+                Minimum="{Binding Minimum, ElementName=Root}"
+                Maximum="{Binding Maximum, ElementName=Root}"
+                TickFrequency="{Binding Step, ElementName=Root}"
+                Value="{Binding Value, ElementName=Root, Mode=TwoWay}" />
+
+        <TextBlock Grid.Column="2"
+                   Text="{Binding Display, ElementName=Root}"
+                   Width="76"
+                   TextAlignment="Right"
+                   VerticalAlignment="Center"
+                   Margin="0,7,0,0" />
+    </Grid>
+</UserControl>

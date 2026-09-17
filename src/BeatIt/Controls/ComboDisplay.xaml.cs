@@ -7,37 +7,40 @@ using BeatIt.Core;
 namespace BeatIt.Controls;
 
 /// <summary>
-/// 콤보 수를 튀어오르게 띄운다. 콤보가 쌓일수록 크고 붉어진다.
-/// 테마에 숫자 그림이 있으면 그걸 쓰고, 없으면 테마 폰트로, 그것도 없으면 기본 글꼴로 그린다.
+/// 콤보 수를 캐릭터 머리 위에 띄운다. 창이 내준 자리의 <b>바닥에 밑변을 붙이고 위로만 자라서</b>,
+/// 아무리 커져도 캐릭터를 덮지 않는다. 예전에는 창 맨 위에 매달아 아래로 자랐기 때문에
+/// 콤보가 40 만 넘어도 머리를 파고들었다.
+///
+/// 크기와 색은 <see cref="ComboStyle"/> 이 정한 계단을 탄다. 계단이 오르는 자리에서 한 번
+/// 크게 연출하고, 스펙트럼을 다 쓰면 은은한 무지개로 넘어간다.
+/// 테마가 숫자 그림을 쓰면 색은 못 입힌다. 그림을 물들이면 원래 색이 뭐였는지 알 수 없어진다.
 /// </summary>
 public partial class ComboDisplay : UserControl
 {
-    private const double LabelRatio = 0.3;
-
-    private static readonly Color[] Tiers =
-    [
-        Color.FromRgb(0xFF, 0xFF, 0xFF),
-        Color.FromRgb(0xFF, 0xE0, 0x66),
-        Color.FromRgb(0xFF, 0xA5, 0x2B),
-        Color.FromRgb(0xFF, 0x5C, 0x2B),
-        Color.FromRgb(0xFF, 0x2B, 0x5C),
-    ];
+    /// <summary>무지개가 한 바퀴 도는 데 걸리는 시간. 빠르면 눈이 아프고 느리면 안 도는 것 같다.</summary>
+    private static readonly Duration RainbowCycle = new(TimeSpan.FromSeconds(4.5));
 
     private readonly FontFamily _fallbackFont;
+    private readonly SolidColorBrush _tint = new(Colors.White);
+
+    private ComboStyle _style = new();
     private Theme _theme = Theme.Empty();
-    private double _size = 52;
+    private bool _rainbow;
 
     public ComboDisplay()
     {
         InitializeComponent();
         _fallbackFont = CountText.FontFamily;
+        CountText.Foreground = _tint;
+        LabelText.Foreground = _tint;
     }
 
     public void SetTheme(Theme theme) => _theme = theme;
 
-    public void SetSize(double size) => _size = Math.Max(12, size);
+    /// <summary>크기와 색의 계단을 정한 규칙. 창과 같은 것을 나눠 쓴다.</summary>
+    public void SetStyle(ComboStyle style) => _style = style;
 
-    /// <summary>기본 위치(위젯 위쪽 가운데)에서 얼마나 밀어 놓을지.</summary>
+    /// <summary>기본 위치(캐릭터 머리 위 가운데)에서 얼마나 밀어 놓을지.</summary>
     public void SetOffset(double x, double y)
     {
         Offset.X = x;
@@ -53,19 +56,23 @@ public partial class ComboDisplay : UserControl
             return;
         }
 
-        Brush tint = new SolidColorBrush(Tiers[Math.Min(combo / 8, Tiers.Length - 1)]);
-        double size = _size + Math.Min(combo, 40) * 0.9;
-        RenderCount(combo, size, tint);
-        RenderLabel(size, tint);
+        double size = _style.SizeFor(combo);
+        bool milestone = _style.IsMilestone(combo);
+
+        RenderCount(combo, size);
+        RenderLabel(size);
+        Paint(combo, milestone);
 
         BeginAnimation(OpacityProperty, null);
         Opacity = 1;
-        Pop(combo);
+        Pop(combo, milestone);
     }
 
     /// <summary>콤보가 끊겼다. 스르륵 사라진다.</summary>
     public void Hide()
     {
+        StopRainbow();
+
         if (Opacity <= 0)
         {
             return;
@@ -78,7 +85,7 @@ public partial class ComboDisplay : UserControl
         BeginAnimation(OpacityProperty, fade);
     }
 
-    private void RenderCount(int combo, double size, Brush tint)
+    private void RenderCount(int combo, double size)
     {
         if (_theme.Digits is null)
         {
@@ -87,7 +94,6 @@ public partial class ComboDisplay : UserControl
             CountText.Text = combo.ToString();
             CountText.FontSize = size;
             CountText.FontFamily = _theme.Font ?? _fallbackFont;
-            CountText.Foreground = tint;
             return;
         }
 
@@ -106,28 +112,100 @@ public partial class ComboDisplay : UserControl
         }
     }
 
-    private void RenderLabel(double size, Brush tint)
+    private void RenderLabel(double size)
     {
         if (_theme.Label is null)
         {
             LabelImage.Visibility = Visibility.Collapsed;
             LabelText.Visibility = Visibility.Visible;
-            LabelText.FontSize = size * LabelRatio;
+            LabelText.FontSize = size * ComboStyle.LabelRatio;
             LabelText.FontFamily = _theme.Font ?? _fallbackFont;
-            LabelText.Foreground = tint;
             return;
         }
 
         LabelText.Visibility = Visibility.Collapsed;
         LabelImage.Visibility = Visibility.Visible;
         LabelImage.Source = _theme.Label;
-        LabelImage.Height = size * LabelRatio;
+        LabelImage.Height = size * ComboStyle.LabelRatio;
     }
 
-    private void Pop(int combo)
+    /// <summary>
+    /// 색을 입힌다. 스펙트럼을 다 쓴 뒤로는 무지개를 계속 돌리므로 계단마다 다시 걸지 않는다.
+    /// 다시 걸면 매번 첫 색으로 튀어서 도는 게 끊긴다.
+    /// </summary>
+    private void Paint(int combo, bool milestone)
     {
-        double overshoot = 1.35 + Math.Min(combo, 30) * 0.01;
-        DoubleAnimation pop = new(overshoot, 1, TimeSpan.FromMilliseconds(420))
+        if (_style.IsRainbow(combo))
+        {
+            StartRainbow();
+            return;
+        }
+
+        StopRainbow();
+        Color target = _style.ColorFor(combo);
+
+        if (!milestone)
+        {
+            _tint.Color = target;
+            return;
+        }
+
+        // 계단이 오른 순간만 흰색으로 번쩍였다가 그 계단의 색으로 가라앉는다.
+        ColorAnimation flash = new(Colors.White, target, new Duration(TimeSpan.FromMilliseconds(520)))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+        };
+        _tint.BeginAnimation(SolidColorBrush.ColorProperty, flash);
+    }
+
+    private void StartRainbow()
+    {
+        if (_rainbow)
+        {
+            return;
+        }
+
+        _rainbow = true;
+
+        ColorAnimationUsingKeyFrames cycle = new()
+        {
+            Duration = RainbowCycle,
+            RepeatBehavior = RepeatBehavior.Forever,
+        };
+
+        // 여섯 조각으로 나눠 한 바퀴. 끝 색이 첫 색과 같아야 이어질 때 안 튄다.
+        const int steps = 6;
+        for (int step = 0; step <= steps; step++)
+        {
+            double progress = step / (double)steps;
+            cycle.KeyFrames.Add(new LinearColorKeyFrame(ComboStyle.Rainbow(progress), KeyTime.FromPercent(progress)));
+        }
+
+        _tint.BeginAnimation(SolidColorBrush.ColorProperty, cycle);
+    }
+
+    private void StopRainbow()
+    {
+        if (!_rainbow)
+        {
+            return;
+        }
+
+        _rainbow = false;
+
+        // 애니메이션을 떼면 마지막으로 그리던 색이 아니라 원래 값으로 돌아간다. 직접 다시 칠한다.
+        Color last = _tint.Color;
+        _tint.BeginAnimation(SolidColorBrush.ColorProperty, null);
+        _tint.Color = last;
+    }
+
+    /// <summary>계단이 오르는 자리에서는 훨씬 크게 튄다. 그래야 50 이 사건처럼 보인다.</summary>
+    private void Pop(int combo, bool milestone)
+    {
+        double overshoot = _style.PopFor(combo, milestone);
+        Duration life = new(TimeSpan.FromMilliseconds(milestone ? 620 : 420));
+
+        DoubleAnimation pop = new(overshoot, 1, life)
         {
             EasingFunction = new ElasticEase { Oscillations = 2, Springiness = 4, EasingMode = EasingMode.EaseOut },
         };

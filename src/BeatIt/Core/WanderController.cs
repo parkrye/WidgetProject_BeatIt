@@ -5,10 +5,6 @@ namespace BeatIt.Core;
 /// <summary>켜두면 위젯이 혼자 화면을 돌아다닌다. 목적지를 하나 고르고 가다가, 도착하면 좀 쉬고 다시 고른다.</summary>
 public sealed class WanderController
 {
-    private const double MinSpeed = 70;
-    private const double MaxSpeed = 165;
-    private const double MinRest = 1.5;
-    private const double MaxRest = 5.5;
     private const double ArriveDistance = 1.5;
 
     private readonly Random _random = new();
@@ -38,6 +34,28 @@ public sealed class WanderController
     }
 
     public bool IsMoving { get; private set; }
+
+    /// <summary>목적지를 새로 고를 때마다 이 사이에서 걷는 속도를 뽑는다(px/s).</summary>
+    public double SpeedMin { get; private set; } = 70;
+
+    public double SpeedMax { get; private set; } = 165;
+
+    /// <summary>목적지에 닿은 뒤 이 사이에서 쉬는 시간을 뽑는다(초).</summary>
+    public double RestMin { get; private set; } = 1.5;
+
+    public double RestMax { get; private set; } = 5.5;
+
+    /// <summary>
+    /// 걷는 속도와 쉬는 시간의 범위를 정한다. 뒤집힌 값이 들어와도 서로 넘지 않게 눌러둔다.
+    /// 설정 창에서 최소를 최대보다 크게 끌어도 그 프레임에 걸음이 멈추면 안 된다.
+    /// </summary>
+    public void SetPace(double speedMin, double speedMax, double restMin, double restMax)
+    {
+        SpeedMin = Math.Max(1, speedMin);
+        SpeedMax = Math.Max(SpeedMin, speedMax);
+        RestMin = Math.Max(0, restMin);
+        RestMax = Math.Max(RestMin, restMax);
+    }
 
     /// <summary>맞았거나 끌려가는 중에는 잠깐 멈춘다.</summary>
     public void Suspend(double seconds)
@@ -90,7 +108,7 @@ public sealed class WanderController
         if (distance <= ArriveDistance)
         {
             IsMoving = false;
-            _restRemaining = MinRest + _random.NextDouble() * (MaxRest - MinRest);
+            _restRemaining = RestMin + _random.NextDouble() * (RestMax - RestMin);
             return remaining;
         }
 
@@ -112,7 +130,7 @@ public sealed class WanderController
         _target = new Point(
             bounds.X + _random.NextDouble() * Math.Max(1, bounds.Width),
             bounds.Y + _random.NextDouble() * Math.Max(1, bounds.Height));
-        _speed = MinSpeed + _random.NextDouble() * (MaxSpeed - MinSpeed);
+        _speed = SpeedMin + _random.NextDouble() * (SpeedMax - SpeedMin);
         _restRemaining = 0;
         _hasTarget = true;
         IsMoving = true;

@@ -7,8 +7,8 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using BeatIt.Core;
 using BeatIt.Models;
+using BeatIt.Controls;
 using BeatIt.Services;
-using Microsoft.Win32;
 
 namespace BeatIt.Views;
 
@@ -21,7 +21,7 @@ public partial class SettingsWindow : Window
 
     /// <summary>목록 맨 앞이 곧 기본값이다. 같은 걸 물어보자고 폴더를 또 훑지 않는다.</summary>
     private string? _defaultCharacter;
-    private readonly string? _defaultTheme;
+    private string? _defaultTheme;
 
     private readonly AreaChoice[] _areaChoices =
     [
@@ -30,6 +30,8 @@ public partial class SettingsWindow : Window
         new(WanderAreaKind.WorkArea, "작업 영역 (작업표시줄 제외)"),
         new(WanderAreaKind.Custom, "직접 지정..."),
     ];
+
+    private readonly (SliderRow Min, SliderRow Max)[] _pairs;
 
     private AreaRect? _customArea;
     private AreaChoice _lastAreaChoice;
@@ -48,26 +50,42 @@ public partial class SettingsWindow : Window
         CharacterCombo.ItemsSource = _characters;
         ThemeCombo.ItemsSource = _themes;
 
-        WidthSlider.Value = settings.WidgetWidth;
-        ComboSlider.Value = settings.ComboTimeoutMs;
-        IdleMinSlider.Value = settings.IdleMinMs;
-        IdleMaxSlider.Value = settings.IdleMaxMs;
-        ComboSizeSlider.Value = settings.ComboSize;
-        ComboXSlider.Value = settings.ComboOffsetX;
-        ComboYSlider.Value = settings.ComboOffsetY;
-        VolumeSlider.Value = settings.SoundVolume * 100;
+        // 최소/최대가 짝지어 움직이는 줄. 하나를 상대 너머로 끌면 상대를 밀어낸다.
+        _pairs =
+        [
+            (IdleMinRow, IdleMaxRow),
+            (IdleSoundMinRow, IdleSoundMaxRow),
+            (SpeedMinRow, SpeedMaxRow),
+            (RestMinRow, RestMaxRow),
+        ];
+
+        WidthRow.Value = settings.WidgetWidth;
+        ComboTimeoutRow.Value = settings.ComboTimeoutMs;
+        IdleMinRow.Value = settings.IdleMinMs;
+        IdleMaxRow.Value = settings.IdleMaxMs;
+        ComboSizeRow.Value = settings.ComboSize;
+        ComboXRow.Value = settings.ComboOffsetX;
+        ComboYRow.Value = settings.ComboOffsetY;
+        VolumeRow.Value = settings.SoundVolume * 100;
         MuteCheck.IsChecked = settings.SoundMuted;
-        IdleSoundMinSlider.Value = settings.IdleSoundMinMs;
-        IdleSoundMaxSlider.Value = settings.IdleSoundMaxMs;
+        IdleSoundMinRow.Value = settings.IdleSoundMinMs;
+        IdleSoundMaxRow.Value = settings.IdleSoundMaxMs;
         EffectsCheck.IsChecked = settings.EffectsEnabled;
         WanderCheck.IsChecked = settings.Wander;
+        FillMotion(settings);
+        FillThrow(settings);
+        FillHit(settings);
+        FillDrag(settings);
+        FillCombo(settings);
         _customArea = settings.CustomWanderArea?.Clone();
         WanderAreaCombo.ItemsSource = _areaChoices;
         WanderAreaCombo.SelectedItem = _areaChoices.First(choice => choice.Kind == settings.WanderArea);
         _lastAreaChoice = (AreaChoice)WanderAreaCombo.SelectedItem;
+        ThrowCheck.IsChecked = settings.ThrowEnabled;
         TopmostCheck.IsChecked = settings.Topmost;
         LockCheck.IsChecked = settings.PositionLocked;
 
+        RefreshThrow();
         SelectCharacter(settings.CharacterPath);
         SelectTheme(settings.ThemePath);
         RefreshWanderArea();
@@ -79,9 +97,39 @@ public partial class SettingsWindow : Window
     /// <summary>확인을 눌렀을 때 적용할 설정.</summary>
     public AppSettings Result { get; }
 
-    private void OnValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e) => Push();
+    private void OnRowChanged(object? sender, EventArgs e) => Push();
 
     private void OnValueToggled(object sender, RoutedEventArgs e) => Push();
+
+    /// <summary>
+    /// 최소와 최대가 짝인 줄. 하나를 상대 너머로 끌면 상대가 같이 밀려난다.
+    /// 밀어낸 쪽에서 이 함수가 한 번 더 울리지만, 그때는 이미 어긋난 데가 없어 거기서 멈춘다.
+    /// </summary>
+    private void OnPairChanged(object? sender, EventArgs e)
+    {
+        foreach ((SliderRow min, SliderRow max) in _pairs)
+        {
+            if (ReferenceEquals(sender, min) && max.Value < min.Value)
+            {
+                max.Value = min.Value;
+            }
+            else if (ReferenceEquals(sender, max) && min.Value > max.Value)
+            {
+                min.Value = max.Value;
+            }
+        }
+
+        Push();
+    }
+
+    private void OnThrowToggled(object sender, RoutedEventArgs e)
+    {
+        RefreshThrow();
+        Push();
+    }
+
+    /// <summary>던지기를 꺼두면 그 값들을 만져봐야 아무 일도 안 난다. 회색으로 눌러둔다.</summary>
+    private void RefreshThrow() => ThrowDetail.IsEnabled = ThrowCheck.IsChecked == true;
 
     private void OnWanderToggled(object sender, RoutedEventArgs e)
     {
@@ -218,46 +266,6 @@ public partial class SettingsWindow : Window
         Push();
     }
 
-    private void OnIdleMinChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (IdleMaxSlider is not null && IdleMaxSlider.Value < e.NewValue)
-        {
-            IdleMaxSlider.Value = e.NewValue;
-        }
-
-        Push();
-    }
-
-    private void OnIdleMaxChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (IdleMinSlider is not null && IdleMinSlider.Value > e.NewValue)
-        {
-            IdleMinSlider.Value = e.NewValue;
-        }
-
-        Push();
-    }
-
-    private void OnIdleSoundMinChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (IdleSoundMaxSlider is not null && IdleSoundMaxSlider.Value < e.NewValue)
-        {
-            IdleSoundMaxSlider.Value = e.NewValue;
-        }
-
-        Push();
-    }
-
-    private void OnIdleSoundMaxChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (IdleSoundMinSlider is not null && IdleSoundMinSlider.Value > e.NewValue)
-        {
-            IdleSoundMinSlider.Value = e.NewValue;
-        }
-
-        Push();
-    }
-
     /// <summary>
     /// 캐릭터를 만들고 고치는 창을 연다. 닫고 나면 목록이 달라져 있을 수 있어 다시 읽는다.
     /// 파일을 직접 손대는 일이라 "만지면 즉시 반영" 하는 이 창과 성질이 달라 따로 뺐다.
@@ -266,12 +274,19 @@ public partial class SettingsWindow : Window
     {
         CharacterLibrary.EnsureUserRoot();
 
+        // 위젯이 쥐고 있는 소리 파일을 먼저 놓게 한다. 미리 열어둔 채로는 지금 쓰는 캐릭터의
+        // 소리를 빼지도 갈아 끼우지도 못한다. 닫고 나서 통째로 다시 읽으니 조용한 건 그동안뿐이다.
+        _preview.ReleaseAudio();
+
         string? chosen = (CharacterCombo.SelectedItem as CharacterInfo)?.Path;
         CharacterEditorWindow editor = new(chosen) { Owner = this };
         editor.ShowDialog();
 
         // 편집기에서 무엇을 보고 있었는지가 아니라, 쓰던 캐릭터가 어떻게 됐는지를 따라간다.
         ReloadCharacters(editor.InUse);
+
+        // 폴더 안이 달라졌으니 경로가 그대로여도 다시 읽어야 방금 넣은 그림과 소리가 나온다.
+        _preview.ReloadAssets();
     }
 
     /// <summary>편집기가 만들고 지운 걸 목록에 반영한다. 쓰던 캐릭터가 사라졌으면 기본 캐릭터로 떨어진다.</summary>
@@ -288,23 +303,33 @@ public partial class SettingsWindow : Window
         SelectCharacter(select);
     }
 
-    private void OnAddTheme(object sender, RoutedEventArgs e)
+    /// <summary>테마를 만들고 고치는 창을 연다. 캐릭터 관리와 같은 성질이라 같은 흐름으로 다룬다.</summary>
+    private void OnManageThemes(object sender, RoutedEventArgs e)
     {
-        string? folder = AskFolder("테마 폴더 고르기");
-        if (folder is null)
+        ThemeLibrary.EnsureRoot();
+
+        // 위젯이 쥐고 있는 글꼴을 먼저 놓게 한다. 그리는 동안 잠겨 있으면 못 갈아 끼운다.
+        _preview.ReleaseTheme();
+
+        string? chosen = (ThemeCombo.SelectedItem as ThemeInfo)?.Path;
+        ThemeEditorWindow editor = new(chosen) { Owner = this };
+        editor.ShowDialog();
+
+        ReloadThemes(editor.InUse);
+        _preview.ReloadAssets();
+    }
+
+    /// <summary>편집기가 만들고 지운 걸 목록에 반영한다. 쓰던 테마가 사라졌으면 기본 테마로 떨어진다.</summary>
+    private void ReloadThemes(string? select)
+    {
+        _themes.Clear();
+        foreach (ThemeInfo info in ThemeLibrary.Scan())
         {
-            return;
+            _themes.Add(info);
         }
 
-        ThemeInfo? info = ThemeLibrary.Describe(folder);
-        if (info is null)
-        {
-            Complain("그 폴더를 테마로 읽을 수 없다.\neffects / combo 하위 폴더를 두고 그 안에 이미지를 넣어야 한다.");
-            return;
-        }
-
-        ThemeInfo existing = _themes.FirstOrDefault(t => SamePath(t.Path, info.Path)) ?? Add(_themes, info);
-        ThemeCombo.SelectedItem = existing;
+        _defaultTheme = _themes.FirstOrDefault()?.Path;
+        SelectTheme(select);
     }
 
     private void OnOpenCharacterFolder(object sender, RoutedEventArgs e)
@@ -336,6 +361,69 @@ public partial class SettingsWindow : Window
         _preview.Preview(Collect().Clone());
     }
 
+    /// <summary>
+    /// 상세 설정 한 칸을 처음 값으로 되돌린다. 값이 서른 개 가까이 되면 어디를 얼마나 만졌는지
+    /// 기억하지 못하게 되는데, 창을 취소하면 여태 만진 게 다 날아가서 한 칸만 되돌릴 방법이 없다.
+    /// 갓 만든 AppSettings 가 곧 기본값이라 따로 적어두지 않는다.
+    /// </summary>
+    private void OnResetMotion(object sender, RoutedEventArgs e) => Reset(FillMotion);
+
+    private void OnResetThrow(object sender, RoutedEventArgs e) => Reset(FillThrow);
+
+    private void OnResetHit(object sender, RoutedEventArgs e) => Reset(FillHit);
+
+    private void OnResetDrag(object sender, RoutedEventArgs e) => Reset(FillDrag);
+
+    private void OnResetCombo(object sender, RoutedEventArgs e) => Reset(FillCombo);
+
+    private void Reset(Action<AppSettings> fill)
+    {
+        fill(new AppSettings());
+        Push();
+    }
+
+    private void FillMotion(AppSettings from)
+    {
+        SpeedMinRow.Value = from.WanderSpeedMin;
+        SpeedMaxRow.Value = from.WanderSpeedMax;
+        RestMinRow.Value = from.WanderRestMinMs;
+        RestMaxRow.Value = from.WanderRestMaxMs;
+        HitRestRow.Value = from.HitRestMs;
+        DragRestRow.Value = from.DragRestMs;
+    }
+
+    private void FillThrow(AppSettings from)
+    {
+        ThrowScaleRow.Value = from.ThrowSpeedScale;
+        ThrowMaxSpeedRow.Value = from.ThrowMaxSpeed;
+        ThrowBounceRow.Value = from.ThrowBounce;
+        ThrowFrictionRow.Value = from.ThrowFriction;
+        ThrowStopRow.Value = from.ThrowStopSpeed;
+    }
+
+    private void FillHit(AppSettings from)
+    {
+        HitPowerRow.Value = from.HitPower;
+        HitTiltRow.Value = from.HitTilt;
+        HitGainRow.Value = from.HitComboGain * 100;
+        BeatHoldRow.Value = from.BeatHoldMs;
+    }
+
+    private void FillDrag(AppSettings from)
+    {
+        DragLagRow.Value = from.DragLag;
+        DragStretchRow.Value = from.DragStretch;
+        DragSpringRow.Value = from.DragSpring;
+    }
+
+    private void FillCombo(AppSettings from)
+    {
+        ComboGapRow.Value = from.ComboGap;
+        ComboMilestoneRow.Value = from.ComboMilestone;
+        ComboGrowthRow.Value = from.ComboGrowth * 100;
+        ComboMaxScaleRow.Value = from.ComboMaxScale;
+    }
+
     private AppSettings Collect()
     {
         string? character = (CharacterCombo.SelectedItem as CharacterInfo)?.Path;
@@ -344,21 +432,50 @@ public partial class SettingsWindow : Window
         // 기본 캐릭터와 기본 테마는 경로를 비워 저장한다. 앱 폴더가 바뀌어도 따라온다.
         Result.CharacterPath = character is not null && SamePath(character, _defaultCharacter) ? null : character;
         Result.ThemePath = theme is not null && SamePath(theme, _defaultTheme) ? null : theme;
-        Result.WidgetWidth = WidthSlider.Value;
-        Result.ComboTimeoutMs = (int)ComboSlider.Value;
-        Result.IdleMinMs = (int)IdleMinSlider.Value;
-        Result.IdleMaxMs = (int)Math.Max(IdleMaxSlider.Value, IdleMinSlider.Value);
-        Result.ComboSize = ComboSizeSlider.Value;
-        Result.ComboOffsetX = ComboXSlider.Value;
-        Result.ComboOffsetY = ComboYSlider.Value;
-        Result.SoundVolume = VolumeSlider.Value / 100;
+        Result.WidgetWidth = WidthRow.Value;
+        Result.ComboTimeoutMs = (int)ComboTimeoutRow.Value;
+        Result.IdleMinMs = (int)IdleMinRow.Value;
+        Result.IdleMaxMs = (int)Math.Max(IdleMaxRow.Value, IdleMinRow.Value);
+        Result.ComboSize = ComboSizeRow.Value;
+        Result.ComboOffsetX = ComboXRow.Value;
+        Result.ComboOffsetY = ComboYRow.Value;
+        Result.SoundVolume = VolumeRow.Value / 100;
         Result.SoundMuted = MuteCheck.IsChecked == true;
-        Result.IdleSoundMinMs = (int)IdleSoundMinSlider.Value;
-        Result.IdleSoundMaxMs = (int)Math.Max(IdleSoundMaxSlider.Value, IdleSoundMinSlider.Value);
+        Result.IdleSoundMinMs = (int)IdleSoundMinRow.Value;
+        Result.IdleSoundMaxMs = (int)Math.Max(IdleSoundMaxRow.Value, IdleSoundMinRow.Value);
         Result.EffectsEnabled = EffectsCheck.IsChecked == true;
         Result.Wander = WanderCheck.IsChecked == true;
         Result.WanderArea = (WanderAreaCombo.SelectedItem as AreaChoice)?.Kind ?? WanderAreaKind.FullScreen;
         Result.CustomWanderArea = _customArea?.Clone();
+
+        Result.WanderSpeedMin = SpeedMinRow.Value;
+        Result.WanderSpeedMax = Math.Max(SpeedMaxRow.Value, SpeedMinRow.Value);
+        Result.WanderRestMinMs = (int)RestMinRow.Value;
+        Result.WanderRestMaxMs = (int)Math.Max(RestMaxRow.Value, RestMinRow.Value);
+        Result.HitRestMs = (int)HitRestRow.Value;
+        Result.DragRestMs = (int)DragRestRow.Value;
+
+        Result.ThrowEnabled = ThrowCheck.IsChecked == true;
+        Result.ThrowSpeedScale = ThrowScaleRow.Value;
+        Result.ThrowMaxSpeed = ThrowMaxSpeedRow.Value;
+        Result.ThrowBounce = ThrowBounceRow.Value;
+        Result.ThrowFriction = ThrowFrictionRow.Value;
+        Result.ThrowStopSpeed = ThrowStopRow.Value;
+
+        Result.HitPower = HitPowerRow.Value;
+        Result.HitTilt = HitTiltRow.Value;
+        Result.HitComboGain = HitGainRow.Value / 100;
+        Result.BeatHoldMs = (int)BeatHoldRow.Value;
+
+        Result.DragLag = DragLagRow.Value;
+        Result.DragStretch = DragStretchRow.Value;
+        Result.DragSpring = DragSpringRow.Value;
+
+        Result.ComboMilestone = (int)ComboMilestoneRow.Value;
+        Result.ComboGrowth = ComboGrowthRow.Value / 100;
+        Result.ComboMaxScale = ComboMaxScaleRow.Value;
+        Result.ComboGap = ComboGapRow.Value;
+
         Result.Topmost = TopmostCheck.IsChecked == true;
         Result.PositionLocked = LockCheck.IsChecked == true;
         return Result;
@@ -387,8 +504,12 @@ public partial class SettingsWindow : Window
         ThemeCombo.SelectedItem = _themes.FirstOrDefault(t => SamePath(t.Path, target));
         if (ThemeCombo.SelectedItem is null && target is not null && ThemeLibrary.Describe(target) is { } info)
         {
+            // 목록에 없는 폴더를 쓰고 있었다면(직접 고른 폴더) 그대로 목록에 얹어준다.
             ThemeCombo.SelectedItem = Add(_themes, info);
         }
+
+        // 쓰던 테마가 사라졌으면 빈 칸으로 두지 말고 남은 것 중 첫 번째를 쥐여준다.
+        ThemeCombo.SelectedItem ??= _themes.FirstOrDefault();
 
         OnThemeChanged(this, null!);
     }
@@ -404,15 +525,6 @@ public partial class SettingsWindow : Window
         list.Add(item);
         return item;
     }
-
-    private string? AskFolder(string title)
-    {
-        OpenFolderDialog dialog = new() { Title = title, Multiselect = false };
-        return dialog.ShowDialog(this) == true ? dialog.FolderName : null;
-    }
-
-    private void Complain(string message) =>
-        MessageBox.Show(this, message, "BeatIt", MessageBoxButton.OK, MessageBoxImage.Warning);
 
     private static void Open(string folder) =>
         Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });

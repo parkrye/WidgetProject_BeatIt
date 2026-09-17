@@ -8,8 +8,6 @@ namespace BeatIt.Core;
 /// </summary>
 public sealed class CharacterSpriteSource : ISpriteSource
 {
-    private const double BeatHoldSeconds = 0.55;
-
     private readonly Character _character;
     private readonly Random _random = new();
 
@@ -23,6 +21,7 @@ public sealed class CharacterSpriteSource : ISpriteSource
     private double _idleSoundRemaining;
     private double _idleSoundMinSeconds = 10;
     private double _idleSoundMaxSeconds = 30;
+    private double _beatHoldSeconds = 0.55;
 
     public CharacterSpriteSource(Character character, double idleMinSeconds, double idleMaxSeconds)
     {
@@ -58,9 +57,13 @@ public sealed class CharacterSpriteSource : ISpriteSource
 
     public void SetVolume(double volume, bool muted) => _character.Audio.SetVolume(volume, muted);
 
+    public void SetBeatHold(double seconds) => _beatHoldSeconds = Math.Max(0.05, seconds);
+
+    public void ReleaseAudio() => _character.ReleaseAudio();
+
     public void OnHit(FacingDirection direction)
     {
-        _beatRemaining = BeatHoldSeconds;
+        _beatRemaining = _beatHoldSeconds;
 
         // 맞았으면 대기 소리를 낼 때가 아니다. 다음 대기까지 미뤄둔다.
         _idleSoundRemaining = NextIdleSoundDelay();
