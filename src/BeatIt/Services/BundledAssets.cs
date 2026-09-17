@@ -95,10 +95,17 @@ public static class BundledAssets
 
         foreach ((string from, string to) in RenamedCharacters)
         {
-            if (SamePath(characterPath, Path.Combine(CharacterLibrary.UserRoot, from)))
+            string old = Path.Combine(CharacterLibrary.UserRoot, from);
+            if (!SamePath(characterPath, old))
             {
-                return Path.Combine(CharacterLibrary.UserRoot, to);
+                continue;
             }
+
+            // 옛 폴더가 아직 살아 있으면 못 옮겼거나(잠겨 있거나), 새 이름을 쓰는 남의 캐릭터가
+            // 이미 있어서 건너뛴 것이다. 그때 새 이름을 가리키면 방금 풀린 기본 그림 묶음이나
+            // 남의 캐릭터를 쓰게 되어, 손봐둔 캐릭터가 조용히 바뀐다.
+            string renamed = Path.Combine(CharacterLibrary.UserRoot, to);
+            return Directory.Exists(old) || !Directory.Exists(renamed) ? characterPath : renamed;
         }
 
         return characterPath;
@@ -111,8 +118,9 @@ public static class BundledAssets
             string old = Path.Combine(CharacterLibrary.UserRoot, from);
             string renamed = Path.Combine(CharacterLibrary.UserRoot, to);
 
-            // 새 이름이 이미 있으면 폴더는 손대지 않는다. 두 벌을 합칠 방법이 없다.
-            if (Directory.Exists(old) && !Directory.Exists(renamed) && !TryMove(old, renamed))
+            // 옮길 게 없거나, 새 이름을 쓰는 캐릭터가 이미 있으면 손대지 않는다.
+            // 두 벌을 합칠 방법이 없고, 합치려다 남의 그림을 덮어쓰는 게 더 나쁘다.
+            if (!Directory.Exists(old) || Directory.Exists(renamed) || !TryMove(old, renamed))
             {
                 continue;
             }

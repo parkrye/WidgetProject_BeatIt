@@ -20,7 +20,7 @@ public partial class SettingsWindow : Window
     private readonly ObservableCollection<ThemeInfo> _themes;
 
     /// <summary>목록 맨 앞이 곧 기본값이다. 같은 걸 물어보자고 폴더를 또 훑지 않는다.</summary>
-    private readonly string? _defaultCharacter;
+    private string? _defaultCharacter;
     private readonly string? _defaultTheme;
 
     private readonly AreaChoice[] _areaChoices =
@@ -115,6 +115,13 @@ public partial class SettingsWindow : Window
         Dispatcher.InvokeAsync(
             () =>
             {
+                // 고르자마자 확인이나 취소를 눌러 창이 먼저 닫혔으면 여기서 그만둔다.
+                // 닫힌 창을 오버레이의 주인으로 삼으면 그 자리에서 터진다.
+                if (!IsLoaded)
+                {
+                    return;
+                }
+
                 if (TryPickArea())
                 {
                     RefreshWanderArea();
@@ -263,7 +270,8 @@ public partial class SettingsWindow : Window
         CharacterEditorWindow editor = new(chosen) { Owner = this };
         editor.ShowDialog();
 
-        ReloadCharacters(editor.SelectedPath ?? chosen);
+        // 편집기에서 무엇을 보고 있었는지가 아니라, 쓰던 캐릭터가 어떻게 됐는지를 따라간다.
+        ReloadCharacters(editor.InUse);
     }
 
     /// <summary>편집기가 만들고 지운 걸 목록에 반영한다. 쓰던 캐릭터가 사라졌으면 기본 캐릭터로 떨어진다.</summary>
@@ -275,13 +283,9 @@ public partial class SettingsWindow : Window
             _characters.Add(info);
         }
 
-        CharacterCombo.SelectedItem =
-            _characters.FirstOrDefault(character => SamePath(character.Path, select))
-            ?? _characters.FirstOrDefault(character => SamePath(character.Path, _defaultCharacter))
-            ?? _characters.FirstOrDefault();
-
-        // 고른 게 그대로면 SelectionChanged 가 안 울린다. 요약과 미리보기는 직접 챙긴다.
-        OnCharacterChanged(this, null!);
+        // 기본값은 "이름순 첫 캐릭터" 다. 편집기에서 앞 순서가 생겼으면 여기서 같이 바뀐다.
+        _defaultCharacter = _characters.FirstOrDefault()?.Path;
+        SelectCharacter(select);
     }
 
     private void OnAddTheme(object sender, RoutedEventArgs e)
@@ -370,6 +374,10 @@ public partial class SettingsWindow : Window
             CharacterCombo.SelectedItem = Add(_characters, info);
         }
 
+        // 쓰던 캐릭터가 사라졌으면 빈 칸으로 두지 말고 남은 것 중 첫 번째를 쥐여준다.
+        CharacterCombo.SelectedItem ??= _characters.FirstOrDefault();
+
+        // 고른 게 그대로면 SelectionChanged 가 안 울린다. 요약과 미리보기는 직접 챙긴다.
         OnCharacterChanged(this, null!);
     }
 

@@ -107,6 +107,8 @@ public partial class MainWindow : Window, ISettingsPreview
     {
         if (!_wander.Enabled)
         {
+            _pendingStep = default;
+            _sinceMove = 0;
             return;
         }
 
@@ -114,6 +116,7 @@ public partial class MainWindow : Window, ISettingsPreview
         {
             _wander.Suspend(DragRestSeconds);
             _pendingStep = default;
+            _sinceMove = 0;
             return;
         }
 
@@ -123,13 +126,21 @@ public partial class MainWindow : Window, ISettingsPreview
         Rect area = WanderArea.Resolve(_settings.WanderArea, CustomArea(), this, Center + _pendingStep);
         _pendingStep += _wander.Update(delta, intended, WanderArea.Travel(area, new Size(Width, Height)));
 
+        // 쉬는 동안에도 시간을 쌓으면 빚이 남아서, 다시 걷기 시작할 때 한동안 매 프레임 옮긴다.
+        // 옮길 몫이 없으면 시계도 같이 멈춘다.
+        if (_pendingStep == default)
+        {
+            _sinceMove = 0;
+            return;
+        }
+
         _sinceMove += delta;
-        if (_sinceMove < MoveIntervalSeconds || _pendingStep == default)
+        if (_sinceMove < MoveIntervalSeconds)
         {
             return;
         }
 
-        _sinceMove -= MoveIntervalSeconds;
+        _sinceMove = 0;
         Vector step = _pendingStep;
         _pendingStep = default;
 
@@ -218,8 +229,7 @@ public partial class MainWindow : Window, ISettingsPreview
     private async void OnSpriteMouseUp(object sender, MouseButtonEventArgs e)
     {
         bool pressed = _pressed;
-        bool dragged = _dragging;
-        ReleaseGrab();
+        bool dragged = ReleaseGrab();
 
         if (!pressed)
         {
@@ -232,20 +242,30 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
-        _settings.WindowLeft = Left;
-        _settings.WindowTop = Top;
-        await _settingsService.SaveAsync(_settings);
+        await SavePositionAsync();
     }
 
     /// <summary>
     /// 캡처를 우클릭이나 다른 창에 뺏기면 여기로 온다. 누른 상태를 그대로 두면
     /// 위젯이 커서를 따라다니거나, 눌린 줄 알고 영영 안 걷는다.
     /// </summary>
-    private void OnSpriteLostCapture(object sender, MouseEventArgs e) => ReleaseGrab();
-
-    /// <summary>붙잡은 상태를 되돌리고 캡처를 놓는다. 몇 번을 불러도 괜찮다.</summary>
-    private void ReleaseGrab()
+    private async void OnSpriteLostCapture(object sender, MouseEventArgs e)
     {
+        // 끌던 중에 뺏겼으면 놓는 이벤트가 안 온다. 옮겨둔 자리는 여기서 저장해야 남는다.
+        if (ReleaseGrab())
+        {
+            await SavePositionAsync();
+        }
+    }
+
+    /// <summary>
+    /// 붙잡은 상태를 되돌리고 캡처를 놓는다. 끌던 중이었으면 true.
+    /// 캡처를 푸는 것 자체가 이 함수를 다시 부르지만, 그때는 이미 지워져 있어 false 를 돌려준다.
+    /// </summary>
+    private bool ReleaseGrab()
+    {
+        bool dragged = _dragging;
+
         _pressed = false;
         _dragging = false;
         _motion = default;
@@ -254,6 +274,15 @@ public partial class MainWindow : Window, ISettingsPreview
         {
             SpriteImage.ReleaseMouseCapture();
         }
+
+        return dragged;
+    }
+
+    private Task SavePositionAsync()
+    {
+        _settings.WindowLeft = Left;
+        _settings.WindowTop = Top;
+        return _settingsService.SaveAsync(_settings);
     }
 
     private void Hit(Point where, FacingDirection direction)

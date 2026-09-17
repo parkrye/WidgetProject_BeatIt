@@ -63,6 +63,13 @@ public static class CharacterEditor
             return target;
         }
 
+        // 캐릭터 폴더 자신이나 그 위를 고르면 목적지가 원본 안에 들어간다.
+        // 그대로 두면 자기 자신을 끝없이 베끼다가 경로 길이에서 터진다.
+        if (Contains(source, target.Path!))
+        {
+            return EditResult.Failed("그 폴더 안으로는 못 가져온다.\n캐릭터 폴더 자신이나 그 위를 고른 것 같다.");
+        }
+
         try
         {
             CopyTree(source, target.Path!);
@@ -159,12 +166,29 @@ public static class CharacterEditor
             return guard;
         }
 
+        string destination = slot.In(folder);
+        if (!Contains(destination, existing))
+        {
+            return EditResult.Failed("그 파일은 이 칸에 없다.");
+        }
+
         try
         {
-            string destination = System.IO.Path.GetDirectoryName(existing)!;
             string target = FreeNameIn(destination, System.IO.Path.GetFileName(source));
             File.Copy(source, target);
-            File.Delete(existing);
+
+            try
+            {
+                File.Delete(existing);
+            }
+            catch
+            {
+                // 옛 파일을 못 지웠으면 새 파일도 도로 치운다.
+                // 안 그러면 "바꾸지 못했다" 고 알리면서 실제로는 두 장이 남는다.
+                Discard(target);
+                throw;
+            }
+
             return EditResult.Done(target);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -181,19 +205,22 @@ public static class CharacterEditor
             return guard;
         }
 
-        try
+        // 하나가 막혔다고 나머지까지 안 빼면, 어디까지 됐는지 알 수 없어진다.
+        List<string> stuck = [];
+        foreach (string path in paths)
         {
-            foreach (string path in paths)
+            if (!Discard(path))
             {
-                File.Delete(path);
+                stuck.Add(System.IO.Path.GetFileName(path));
             }
+        }
 
+        if (stuck.Count == 0)
+        {
             return EditResult.Done(folder);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            return EditResult.Failed($"빼지 못했다.\n{ex.Message}{InUseHint(slot)}");
-        }
+
+        return EditResult.Failed($"{stuck.Count}개를 못 뺐다.\n{string.Join(", ", stuck)}{InUseHint(slot)}");
     }
 
     /// <summary>
@@ -249,6 +276,37 @@ public static class CharacterEditor
     private static string InUseHint(CharacterSlot slot) => slot.IsSound
         ? "\n\n지금 쓰고 있는 캐릭터의 소리는 미리 열어둔 상태라 잠겨 있다. 다른 캐릭터로 바꾼 뒤에 빼야 한다."
         : string.Empty;
+
+    /// <summary>지우기를 시도한다. 잠겨 있으면 false. 여러 개를 뺄 때 하나에 걸려 멈추지 않으려고 쓴다.</summary>
+    private static bool Discard(string path)
+    {
+        try
+        {
+            File.Delete(path);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary><paramref name="inner"/> 가 <paramref name="outer"/> 안에 있거나 같은 곳인가.</summary>
+    private static bool Contains(string outer, string inner)
+    {
+        try
+        {
+            string parent = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(outer));
+            string child = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(inner));
+
+            return string.Equals(parent, child, StringComparison.OrdinalIgnoreCase)
+                || child.StartsWith(parent + System.IO.Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IOException)
+        {
+            return false;
+        }
+    }
 
     private static EditResult EnsureEditable(string folder)
     {

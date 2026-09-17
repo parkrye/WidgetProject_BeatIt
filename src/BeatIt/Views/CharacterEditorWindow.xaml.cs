@@ -40,12 +40,17 @@ public partial class CharacterEditorWindow : Window
             _slots.Add(new SlotRow(slot));
         }
 
+        InUse = select;
         ReloadProfiles(select);
         SlotList.SelectedIndex = 0;
     }
 
-    /// <summary>창을 닫을 때 골라둔 캐릭터 폴더. 설정 창이 이걸로 목록을 맞춘다.</summary>
-    public string? SelectedPath => Selected?.Path;
+    /// <summary>
+    /// 설정 창이 쓰고 있던 캐릭터. 이름을 바꾸면 따라가고, 지우면 비운다.
+    /// 왼쪽 목록의 커서와는 다르다. 여긴 고르는 자리가 아니라 만들고 고치는 자리라,
+    /// 구경만 하고 닫았는데 위젯 캐릭터가 바뀌면 안 된다.
+    /// </summary>
+    public string? InUse { get; private set; }
 
     private Profile? Selected => CharacterList.SelectedItem as Profile;
 
@@ -111,7 +116,14 @@ public partial class CharacterEditorWindow : Window
             return;
         }
 
-        Apply(CharacterEditor.Rename(profile.Path, name), "이름을 바꿨다");
+        bool wasInUse = SamePath(profile.Path, InUse);
+        EditResult result = CharacterEditor.Rename(profile.Path, name);
+        if (result.Ok && wasInUse)
+        {
+            InUse = result.Path;
+        }
+
+        Apply(result, "이름을 바꿨다");
     }
 
     private void OnDelete(object sender, RoutedEventArgs e)
@@ -134,13 +146,21 @@ public partial class CharacterEditorWindow : Window
         }
 
         EditResult result = CharacterEditor.Delete(profile.Path);
+
+        // 반쯤 지워졌을 수도 있으니 실패해도 목록을 다시 읽는다.
+        if (SamePath(profile.Path, InUse) && !Directory.Exists(profile.Path))
+        {
+            InUse = null;
+        }
+
+        ReloadProfiles(null);
+
         if (!result.Ok)
         {
             Complain(result.Problem!);
             return;
         }
 
-        ReloadProfiles(null);
         Status.Text = $"[{profile.Name}] 을 지웠다.";
     }
 
@@ -257,14 +277,15 @@ public partial class CharacterEditorWindow : Window
     /// <summary>파일을 넣거나 뺀 결과를 목록에 반영한다.</summary>
     private void Finish(EditResult result, string done)
     {
+        // 여러 개 중 일부만 빠졌을 수도 있다. 실패했다고 옛 목록을 그대로 두면 안 맞는다.
+        RefreshFiles();
+
         if (!result.Ok)
         {
             Complain(result.Problem!);
             return;
         }
 
-        RefreshFiles();
-        RefreshCounts();
         Status.Text = done;
     }
 
