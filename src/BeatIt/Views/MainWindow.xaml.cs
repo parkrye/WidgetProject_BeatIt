@@ -24,6 +24,12 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>이만큼 움직여야 이동 방향을 다시 따진다. 프레임마다 따지면 그림이 깜빡인다.</summary>
     private const double MoveDirectionDistance = 6;
 
+    /// <summary>
+    /// 창을 실제로 옮기는 주기. 투명 창은 옮길 때마다 화면 합성이 통째로 다시 도는데,
+    /// 걷는 속도에서는 이 정도만 옮겨도 눈에 똑같고 값은 절반이다.
+    /// </summary>
+    private const double MoveIntervalSeconds = 1.0 / 30;
+
     private readonly SettingsService _settingsService;
     private readonly HitAnimator _hitAnimator = new();
     private readonly DragStretchAnimator _dragAnimator = new();
@@ -37,10 +43,13 @@ public partial class MainWindow : Window, ISettingsPreview
     private TimeSpan _lastRenderTime;
     private FacingDirection _moveDirection = FacingDirection.Default;
     private Vector _motion;
+    private Vector _pendingStep;
+    private double _sinceMove;
     private Point _grabPoint;
     private bool _pressed;
     private bool _dragging;
     private bool _positioned;
+    private bool _dialogOpen;
 
     public MainWindow(SettingsService settingsService, AppSettings settings)
     {
@@ -96,25 +105,55 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>혼자 돌아다니는 몫만큼 창을 옮긴다. 걸을 때도 몸이 살짝 늘어난다.</summary>
     private void Walk(double delta)
     {
-        if (_pressed || _dragging)
+        if (!_wander.Enabled)
         {
-            _wander.Suspend(DragRestSeconds);
             return;
         }
 
-        Rect area = WanderArea.Resolve(_settings.WanderArea, CustomArea(), this, Center);
-        Vector step = _wander.Update(delta, new Point(Left, Top), WanderArea.Travel(area, new Size(Width, Height)));
-        if (step == default)
+        if (Busy)
+        {
+            _wander.Suspend(DragRestSeconds);
+            _pendingStep = default;
+            return;
+        }
+
+        // 옮기는 건 미뤄도 목적지 계산은 매 프레임 한다. 아직 안 옮긴 몫을 태워서 물어봐야
+        // 같은 자리를 두 번 걷지 않는다.
+        Point intended = new(Left + _pendingStep.X, Top + _pendingStep.Y);
+        Rect area = WanderArea.Resolve(_settings.WanderArea, CustomArea(), this, Center + _pendingStep);
+        _pendingStep += _wander.Update(delta, intended, WanderArea.Travel(area, new Size(Width, Height)));
+
+        _sinceMove += delta;
+        if (_sinceMove < MoveIntervalSeconds || _pendingStep == default)
         {
             return;
         }
+
+        _sinceMove -= MoveIntervalSeconds;
+        Vector step = _pendingStep;
+        _pendingStep = default;
 
         Left += step.X;
         Top += step.Y;
         TrackMotion(step);
         _dragAnimator.Grab(new Point(0.5, 0.35));
         _dragAnimator.Pull(step * 0.4);
+
+        // 창이 가만히 있는 커서 밑으로 걸어 들어오면 WPF 는 그걸 모른다. 직접 다시 따져야
+        // 올라온 줄 알고 멈춰 선다.
+        Mouse.Synchronize();
     }
+
+    /// <summary>
+    /// 지금 걸으면 안 되는 상황. 잡고 있거나, 설정 창이 떠 있거나, 커서가 올라와 있을 때다.
+    /// 커서 밑에서 걸어 나가면 조준한 클릭이 허공을 때린다.
+    /// </summary>
+    private bool Busy =>
+        _pressed
+        || _dragging
+        || _dialogOpen
+        || SpriteImage.IsMouseOver
+        || SpriteImage.ContextMenu?.IsOpen == true;
 
     /// <summary>
     /// 움직인 거리를 모았다가 일정 거리를 넘으면 그때 방향을 정한다.
@@ -240,7 +279,20 @@ public partial class MainWindow : Window, ISettingsPreview
         AppSettings original = _settings.Clone();
         SettingsWindow dialog = new(_settings.Clone(), this) { Owner = this };
 
-        if (dialog.ShowDialog() != true)
+        // 설정 창이 떠 있는 동안은 걷지 않는다. 투명 창이 그 위를 매 프레임 지나가면
+        // 설정 창이 통째로 다시 그려져서 슬라이더까지 밀린다.
+        _dialogOpen = true;
+        bool confirmed;
+        try
+        {
+            confirmed = dialog.ShowDialog() == true;
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+
+        if (!confirmed)
         {
             ApplySettings(original);
             return;
