@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using BeatIt.Models;
 using BeatIt.Services;
 using BeatIt.Views;
@@ -16,6 +16,9 @@ public partial class App : Application
 
         SettingsService settingsService = new();
         AppSettings settings = await settingsService.LoadAsync();
+
+        // 기본 캐릭터 이름이 바뀌었으면 골라둔 경로도 같이 따라가야 한다.
+        settings.CharacterPath = BundledAssets.Rename(settings.CharacterPath);
 
         MainWindow window = new(settingsService, settings);
         MainWindow = window;
