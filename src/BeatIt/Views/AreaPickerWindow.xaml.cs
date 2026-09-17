@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Shapes;
 using BeatIt.Core;
 
@@ -15,9 +16,17 @@ public partial class AreaPickerWindow : Window
     /// <summary>이보다 작게 그리면 실수로 클릭한 걸로 본다.</summary>
     private const double MinimumSide = 40;
 
+    /// <summary>
+    /// 끄는 동안 다시 그리는 주기. 이 창은 화면을 통째로 덮는 투명 창이라
+    /// 한 번 고쳐 그릴 때마다 화면 넓이만큼이 통째로 올라간다. 매 프레임은 너무 비싸다.
+    /// </summary>
+    private static readonly TimeSpan RedrawInterval = TimeSpan.FromMilliseconds(33);
+
     private Point _anchor;
     private Rect _selection = Rect.Empty;
     private double _readoutHeight;
+    private DateTime _lastRedraw = DateTime.MinValue;
+    private bool _dirty;
     private bool _dragging;
 
     public AreaPickerWindow(Rect? initial)
@@ -44,6 +53,7 @@ public partial class AreaPickerWindow : Window
         }
 
         Loaded += OnLoaded;
+        Closed += OnClosed;
     }
 
     /// <summary>확인했을 때 그려진 영역. 화면 좌표다.</summary>
@@ -58,6 +68,20 @@ public partial class AreaPickerWindow : Window
         UpdateLayout();
         Place(Guide, (ActualWidth - Guide.ActualWidth) / 2, (ActualHeight - Guide.ActualHeight) / 2);
         _readoutHeight = Readout.ActualHeight;
+
+        Redraw();
+        CompositionTarget.Rendering += OnRendering;
+    }
+
+    private void OnClosed(object? sender, EventArgs e) => CompositionTarget.Rendering -= OnRendering;
+
+    /// <summary>끄는 동안 쌓인 변화를 주기에 한 번씩만 화면에 올린다.</summary>
+    private void OnRendering(object? sender, EventArgs e)
+    {
+        if (!_dirty || DateTime.UtcNow - _lastRedraw < RedrawInterval)
+        {
+            return;
+        }
 
         Redraw();
     }
@@ -84,7 +108,7 @@ public partial class AreaPickerWindow : Window
         }
 
         _selection = new Rect(_anchor, e.GetPosition(Root));
-        Redraw();
+        _dirty = true;
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -125,6 +149,8 @@ public partial class AreaPickerWindow : Window
 
     private void Redraw()
     {
+        _dirty = false;
+        _lastRedraw = DateTime.UtcNow;
         bool usable = IsUsable(_selection);
 
         // 고른 자리만 원래 밝기로 남기고 나머지를 덮는다.
