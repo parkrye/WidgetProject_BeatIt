@@ -43,6 +43,7 @@
         <!-- 한 줄의 이름과 조절기가 같은 설명을 쓰도록 여기 한 군데에 적어둔다. -->
         <sys:String x:Key="CharacterHint">쓸 캐릭터를 고른다. 캐릭터는 폴더 하나고, 안에 idle / move / beat / sounds 폴더를 둔다. 대기 중에는 idle 중 하나가 랜덤하게 바뀌고, 움직일 때는 move, 맞을 때는 beat 가 뜬다. move 와 beat 는 그 아래 default / left / right / up / down 으로 한 겹 더 나눌 수 있다. 없는 건 default 로, default 도 없으면 idle 로 대신한다.</sys:String>
         <sys:String x:Key="ManageHint">캐릭터를 만들고, 이름을 바꾸고, 지운다. 그 안에서 상태별로 그림과 소리를 넣고 뺄 수 있다. 장수 제한은 없고 GIF 도 섞어 쓸 수 있다.</sys:String>
+        <sys:String x:Key="ManageThemeHint">테마를 만들고, 이름을 바꾸고, 지운다. 그 안에서 타격 이펙트와 콤보 그림·글꼴을 넣고 뺄 수 있다. 콤보 숫자는 0~9 열 자리가 정해져 있어서 자리를 골라 채운다.</sys:String>
         <sys:String x:Key="ThemeHint">테마 폴더에는 effects / combo 를 둔다. effects 의 그림 중 하나가 때릴 때마다 튀고, combo 에 0~9 그림이 다 있으면 그 그림으로, 없고 폰트 파일(.ttf/.otf)이 있으면 그 폰트로 콤보를 그린다. 둘 다 없으면 기본 글꼴로 그린다.</sys:String>
         <sys:String x:Key="ComboSizeHint">콤보 숫자의 크기. 숫자 그림을 쓰는 테마에서는 그 그림의 높이가 된다.</sys:String>
         <sys:String x:Key="ComboXHint">콤보 숫자를 기본 자리(위젯 위쪽 가운데)에서 가로로 얼마나 밀지. 민 만큼 창도 같이 넓어져서 숫자가 안 잘린다.</sys:String>
@@ -100,9 +101,8 @@
                         </Grid.ColumnDefinitions>
                         <ComboBox x:Name="ThemeCombo" Grid.Column="0" DisplayMemberPath="Name"
                                   SelectionChanged="OnThemeChanged" ToolTip="{StaticResource ThemeHint}" />
-                        <Button Grid.Column="1" Content="폴더 추가..." Padding="12,4" Margin="8,0,0,0"
-                                Click="OnAddTheme"
-                                ToolTip="밖에 만들어둔 테마 폴더를 목록에 얹는다." />
+                        <Button Grid.Column="1" Content="테마 관리..." Padding="12,4" Margin="8,0,0,0"
+                                Click="OnManageThemes" ToolTip="{StaticResource ManageThemeHint}" />
                         <Button Grid.Column="2" Content="폴더 열기" Padding="12,4" Margin="6,0,0,0"
                                 Click="OnOpenThemeFolder"
                                 ToolTip="테마가 모여 사는 폴더를 탐색기로 연다. 폴더를 통째로 복사해 이름만 바꾸면 새 테마가 된다." />

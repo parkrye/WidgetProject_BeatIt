@@ -41,7 +41,12 @@ public static class BundledAssets
     /// </summary>
     public static IReadOnlySet<string> BundledCharacters => _bundledCharacters ??= ReadTopLevelNames("BeatIt.characters.zip");
 
+    /// <summary>기본 테마도 같은 이유로 잠근다.</summary>
+    public static IReadOnlySet<string> BundledThemes => _bundledThemes ??= ReadTopLevelNames("BeatIt.themes.zip");
+
     private static IReadOnlySet<string>? _bundledCharacters;
+
+    private static IReadOnlySet<string>? _bundledThemes;
 
     private static IReadOnlySet<string> ReadTopLevelNames(string resourceName)
     {

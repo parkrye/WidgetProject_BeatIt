@@ -8,7 +8,6 @@ using System.Windows.Threading;
 using BeatIt.Core;
 using BeatIt.Models;
 using BeatIt.Services;
-using Microsoft.Win32;
 
 namespace BeatIt.Views;
 
@@ -21,7 +20,7 @@ public partial class SettingsWindow : Window
 
     /// <summary>목록 맨 앞이 곧 기본값이다. 같은 걸 물어보자고 폴더를 또 훑지 않는다.</summary>
     private string? _defaultCharacter;
-    private readonly string? _defaultTheme;
+    private string? _defaultTheme;
 
     private readonly AreaChoice[] _areaChoices =
     [
@@ -295,23 +294,30 @@ public partial class SettingsWindow : Window
         SelectCharacter(select);
     }
 
-    private void OnAddTheme(object sender, RoutedEventArgs e)
+    /// <summary>테마를 만들고 고치는 창을 연다. 캐릭터 관리와 같은 성질이라 같은 흐름으로 다룬다.</summary>
+    private void OnManageThemes(object sender, RoutedEventArgs e)
     {
-        string? folder = AskFolder("테마 폴더 고르기");
-        if (folder is null)
+        ThemeLibrary.EnsureRoot();
+
+        string? chosen = (ThemeCombo.SelectedItem as ThemeInfo)?.Path;
+        ThemeEditorWindow editor = new(chosen) { Owner = this };
+        editor.ShowDialog();
+
+        ReloadThemes(editor.InUse);
+        _preview.ReloadAssets();
+    }
+
+    /// <summary>편집기가 만들고 지운 걸 목록에 반영한다. 쓰던 테마가 사라졌으면 기본 테마로 떨어진다.</summary>
+    private void ReloadThemes(string? select)
+    {
+        _themes.Clear();
+        foreach (ThemeInfo info in ThemeLibrary.Scan())
         {
-            return;
+            _themes.Add(info);
         }
 
-        ThemeInfo? info = ThemeLibrary.Describe(folder);
-        if (info is null)
-        {
-            Complain("그 폴더를 테마로 읽을 수 없다.\neffects / combo 하위 폴더를 두고 그 안에 이미지를 넣어야 한다.");
-            return;
-        }
-
-        ThemeInfo existing = _themes.FirstOrDefault(t => SamePath(t.Path, info.Path)) ?? Add(_themes, info);
-        ThemeCombo.SelectedItem = existing;
+        _defaultTheme = _themes.FirstOrDefault()?.Path;
+        SelectTheme(select);
     }
 
     private void OnOpenCharacterFolder(object sender, RoutedEventArgs e)
@@ -394,8 +400,12 @@ public partial class SettingsWindow : Window
         ThemeCombo.SelectedItem = _themes.FirstOrDefault(t => SamePath(t.Path, target));
         if (ThemeCombo.SelectedItem is null && target is not null && ThemeLibrary.Describe(target) is { } info)
         {
+            // 목록에 없는 폴더를 쓰고 있었다면(직접 고른 폴더) 그대로 목록에 얹어준다.
             ThemeCombo.SelectedItem = Add(_themes, info);
         }
+
+        // 쓰던 테마가 사라졌으면 빈 칸으로 두지 말고 남은 것 중 첫 번째를 쥐여준다.
+        ThemeCombo.SelectedItem ??= _themes.FirstOrDefault();
 
         OnThemeChanged(this, null!);
     }
@@ -411,15 +421,6 @@ public partial class SettingsWindow : Window
         list.Add(item);
         return item;
     }
-
-    private string? AskFolder(string title)
-    {
-        OpenFolderDialog dialog = new() { Title = title, Multiselect = false };
-        return dialog.ShowDialog(this) == true ? dialog.FolderName : null;
-    }
-
-    private void Complain(string message) =>
-        MessageBox.Show(this, message, "BeatIt", MessageBoxButton.OK, MessageBoxImage.Warning);
 
     private static void Open(string folder) =>
         Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
