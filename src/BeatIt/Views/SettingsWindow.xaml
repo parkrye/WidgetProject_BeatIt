@@ -57,10 +57,12 @@
 
                     <Border Style="{StaticResource Hint}">
                         <TextBlock TextWrapping="Wrap" Foreground="#444444">
-                            캐릭터는 폴더 하나다. 안에 <Run FontWeight="Bold">idle</Run> / <Run FontWeight="Bold">move</Run> / <Run FontWeight="Bold">beat</Run> 폴더를 두고 이미지를 넣는다.<LineBreak />
-                            대기 중에는 idle 중 하나가 랜덤하게 바뀌고, 끌고 갈 때는 move, 맞을 때는 beat 가 뜬다.<LineBreak />
-                            move 나 beat 가 없으면 idle 로 대신한다. 하위 폴더 없이 이미지만 넣으면 단일 이미지 캐릭터가 된다.<LineBreak />
-                            장수 제한은 없고 GIF 도 섞어 쓸 수 있다.
+                            캐릭터는 폴더 하나다. 안에 <Run FontWeight="Bold">idle</Run> / <Run FontWeight="Bold">move</Run> / <Run FontWeight="Bold">beat</Run> / <Run FontWeight="Bold">sounds</Run> 폴더를 둔다.<LineBreak />
+                            대기 중에는 idle 중 하나가 랜덤하게 바뀌고, 움직일 때는 move, 맞을 때는 beat 가 뜬다.<LineBreak />
+                            move 와 beat 는 그 아래 <Run FontWeight="Bold">default / left / right / up / down</Run> 으로 한 겹 더 나눌 수 있다.
+                            move 는 가는 쪽, beat 는 때린 자리를 따라간다. 나누지 않고 이미지만 두면 전부 default 다.<LineBreak />
+                            sounds 아래 <Run FontWeight="Bold">idle / move / beat</Run> 에 소리 파일을 넣으면 그 행동마다 하나씩 무작위로 난다.<LineBreak />
+                            장수 제한은 없고 GIF 도 섞어 쓸 수 있다. 없는 건 default 로, default 도 없으면 idle 로 대신한다.
                         </TextBlock>
                     </Border>
                 </StackPanel>
@@ -152,6 +154,46 @@
                         <TextBlock TextWrapping="Wrap" Foreground="#444444">
                             콤보 유지 시간 안에 다시 때려야 콤보가 이어진다.<LineBreak />
                             idle 교체 간격은 최소와 최대 사이에서 매번 다시 뽑는다. 규칙적이지 않아야 살아있어 보인다.
+                        </TextBlock>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="소리">
+                <Grid Margin="14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="볼륨" Style="{StaticResource RowLabel}" />
+                    <Slider x:Name="VolumeSlider" Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="1" Style="{StaticResource Row}" ValueChanged="OnValueChanged" />
+                    <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource RowValue}" Text="{Binding ElementName=VolumeSlider, Path=Value, StringFormat={}{0:F0} %}" />
+
+                    <CheckBox x:Name="MuteCheck" Grid.Row="1" Grid.ColumnSpan="3" Content="음소거" Margin="2,12,0,0" Click="OnValueToggled" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="대기 소리 최소" Style="{StaticResource RowLabel}" />
+                    <Slider x:Name="IdleSoundMinSlider" Grid.Row="2" Grid.Column="1" Minimum="1000" Maximum="120000" TickFrequency="1000" Style="{StaticResource Row}" ValueChanged="OnIdleSoundMinChanged" />
+                    <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource RowValue}" Text="{Binding ElementName=IdleSoundMinSlider, Path=Value, StringFormat={}{0:F0} ms}" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="대기 소리 최대" Style="{StaticResource RowLabel}" />
+                    <Slider x:Name="IdleSoundMaxSlider" Grid.Row="3" Grid.Column="1" Minimum="1000" Maximum="120000" TickFrequency="1000" Style="{StaticResource Row}" ValueChanged="OnIdleSoundMaxChanged" />
+                    <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource RowValue}" Text="{Binding ElementName=IdleSoundMaxSlider, Path=Value, StringFormat={}{0:F0} ms}" />
+
+                    <Border Grid.Row="4" Grid.ColumnSpan="3" Style="{StaticResource Hint}" VerticalAlignment="Top">
+                        <TextBlock TextWrapping="Wrap" Foreground="#444444">
+                            소리는 캐릭터 폴더의 <Run FontWeight="Bold">sounds\idle</Run> / <Run FontWeight="Bold">sounds\move</Run> / <Run FontWeight="Bold">sounds\beat</Run> 에서 읽는다.<LineBreak />
+                            move 는 움직이기 시작할 때, beat 는 맞을 때마다 난다. 대기 소리는 위 간격 사이에서 매번 다시 뽑는다.<LineBreak />
+                            wav·mp3·wma·m4a 는 그냥 나고, ogg·flac 처럼 코덱이 따로 필요한 형식은 그 코덱이 깔려 있어야 난다.
+                            못 여는 파일은 알아서 빠지니 섞여 있어도 조용해지지 않는다.
                         </TextBlock>
                     </Border>
                 </Grid>

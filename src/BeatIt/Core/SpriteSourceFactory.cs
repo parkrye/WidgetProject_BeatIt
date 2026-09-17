@@ -12,7 +12,10 @@ public static class SpriteSourceFactory
             ?? TryLoad(CharacterLibrary.DefaultPath)
             ?? Character.Placeholder();
 
-        return new CharacterSpriteSource(character, settings.IdleMinMs / 1000.0, settings.IdleMaxMs / 1000.0);
+        CharacterSpriteSource source = new(character, settings.IdleMinMs / 1000.0, settings.IdleMaxMs / 1000.0);
+        source.SetIdleSoundInterval(settings.IdleSoundMinMs / 1000.0, settings.IdleSoundMaxMs / 1000.0);
+        source.SetVolume(settings.SoundVolume, settings.SoundMuted);
+        return source;
     }
 
     private static Character? TryLoad(string? folder) => folder is null ? null : Character.Load(folder);

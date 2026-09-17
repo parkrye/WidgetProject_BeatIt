@@ -28,6 +28,17 @@ public sealed class AppSettings
     /// <summary>콤보 숫자 크기. 숫자 이미지를 쓸 때는 그 높이가 된다.</summary>
     public double ComboSize { get; set; } = 52;
 
+    /// <summary>소리 크기(0~1). 캐릭터 폴더의 sounds 에 넣어둔 소리에 적용된다.</summary>
+    public double SoundVolume { get; set; } = 0.6;
+
+    /// <summary>켜면 볼륨과 무관하게 아무 소리도 안 난다.</summary>
+    public bool SoundMuted { get; set; }
+
+    /// <summary>대기 중 소리를 내는 간격의 최소/최대(ms). idle 이미지 교체와 따로 돈다.</summary>
+    public int IdleSoundMinMs { get; set; } = 10000;
+
+    public int IdleSoundMaxMs { get; set; } = 30000;
+
     /// <summary>끄면 때려도 이펙트가 안 뜬다.</summary>
     public bool EffectsEnabled { get; set; } = true;
 
@@ -53,6 +64,10 @@ public sealed class AppSettings
         ComboOffsetX = ComboOffsetX,
         ComboOffsetY = ComboOffsetY,
         ComboSize = ComboSize,
+        SoundVolume = SoundVolume,
+        SoundMuted = SoundMuted,
+        IdleSoundMinMs = IdleSoundMinMs,
+        IdleSoundMaxMs = IdleSoundMaxMs,
         EffectsEnabled = EffectsEnabled,
         Wander = Wander,
         Topmost = Topmost,

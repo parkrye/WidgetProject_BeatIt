@@ -38,6 +38,10 @@ public partial class SettingsWindow : Window
         ComboSizeSlider.Value = settings.ComboSize;
         ComboXSlider.Value = settings.ComboOffsetX;
         ComboYSlider.Value = settings.ComboOffsetY;
+        VolumeSlider.Value = settings.SoundVolume * 100;
+        MuteCheck.IsChecked = settings.SoundMuted;
+        IdleSoundMinSlider.Value = settings.IdleSoundMinMs;
+        IdleSoundMaxSlider.Value = settings.IdleSoundMaxMs;
         EffectsCheck.IsChecked = settings.EffectsEnabled;
         WanderCheck.IsChecked = settings.Wander;
         TopmostCheck.IsChecked = settings.Topmost;
@@ -86,6 +90,26 @@ public partial class SettingsWindow : Window
         if (IdleMinSlider is not null && IdleMinSlider.Value > e.NewValue)
         {
             IdleMinSlider.Value = e.NewValue;
+        }
+
+        Push();
+    }
+
+    private void OnIdleSoundMinChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (IdleSoundMaxSlider is not null && IdleSoundMaxSlider.Value < e.NewValue)
+        {
+            IdleSoundMaxSlider.Value = e.NewValue;
+        }
+
+        Push();
+    }
+
+    private void OnIdleSoundMaxChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (IdleSoundMinSlider is not null && IdleSoundMinSlider.Value > e.NewValue)
+        {
+            IdleSoundMinSlider.Value = e.NewValue;
         }
 
         Push();
@@ -173,6 +197,10 @@ public partial class SettingsWindow : Window
         Result.ComboSize = ComboSizeSlider.Value;
         Result.ComboOffsetX = ComboXSlider.Value;
         Result.ComboOffsetY = ComboYSlider.Value;
+        Result.SoundVolume = VolumeSlider.Value / 100;
+        Result.SoundMuted = MuteCheck.IsChecked == true;
+        Result.IdleSoundMinMs = (int)IdleSoundMinSlider.Value;
+        Result.IdleSoundMaxMs = (int)Math.Max(IdleSoundMaxSlider.Value, IdleSoundMinSlider.Value);
         Result.EffectsEnabled = EffectsCheck.IsChecked == true;
         Result.Wander = WanderCheck.IsChecked == true;
         Result.Topmost = TopmostCheck.IsChecked == true;
