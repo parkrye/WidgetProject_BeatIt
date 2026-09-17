@@ -1,7 +1,8 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shapes;
 using BeatIt.Core;
 
 namespace BeatIt.Views;
@@ -15,8 +16,17 @@ public partial class AreaPickerWindow : Window
     /// <summary>이보다 작게 그리면 실수로 클릭한 걸로 본다.</summary>
     private const double MinimumSide = 40;
 
+    /// <summary>
+    /// 끄는 동안 다시 그리는 주기. 이 창은 화면을 통째로 덮는 투명 창이라
+    /// 한 번 고쳐 그릴 때마다 화면 넓이만큼이 통째로 올라간다. 매 프레임은 너무 비싸다.
+    /// </summary>
+    private static readonly TimeSpan RedrawInterval = TimeSpan.FromMilliseconds(33);
+
     private Point _anchor;
     private Rect _selection = Rect.Empty;
+    private double _readoutHeight;
+    private DateTime _lastRedraw = DateTime.MinValue;
+    private bool _dirty;
     private bool _dragging;
 
     public AreaPickerWindow(Rect? initial)
@@ -43,6 +53,7 @@ public partial class AreaPickerWindow : Window
         }
 
         Loaded += OnLoaded;
+        Closed += OnClosed;
     }
 
     /// <summary>확인했을 때 그려진 영역. 화면 좌표다.</summary>
@@ -52,6 +63,26 @@ public partial class AreaPickerWindow : Window
     {
         Activate();
         Focus();
+
+        // 안내문과 치수 표시는 크기가 변하지 않는다. 자리를 한 번만 재두고 그 뒤로는 안 잰다.
+        UpdateLayout();
+        Place(Guide, (ActualWidth - Guide.ActualWidth) / 2, (ActualHeight - Guide.ActualHeight) / 2);
+        _readoutHeight = Readout.ActualHeight;
+
+        Redraw();
+        CompositionTarget.Rendering += OnRendering;
+    }
+
+    private void OnClosed(object? sender, EventArgs e) => CompositionTarget.Rendering -= OnRendering;
+
+    /// <summary>끄는 동안 쌓인 변화를 주기에 한 번씩만 화면에 올린다.</summary>
+    private void OnRendering(object? sender, EventArgs e)
+    {
+        if (!_dirty || DateTime.UtcNow - _lastRedraw < RedrawInterval)
+        {
+            return;
+        }
+
         Redraw();
     }
 
@@ -77,7 +108,7 @@ public partial class AreaPickerWindow : Window
         }
 
         _selection = new Rect(_anchor, e.GetPosition(Root));
-        Redraw();
+        _dirty = true;
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -118,19 +149,18 @@ public partial class AreaPickerWindow : Window
 
     private void Redraw()
     {
-        RectangleGeometry full = new(new Rect(0, 0, ActualWidth, ActualHeight));
+        _dirty = false;
+        _lastRedraw = DateTime.UtcNow;
         bool usable = IsUsable(_selection);
 
         // 고른 자리만 원래 밝기로 남기고 나머지를 덮는다.
-        Shade.Data = usable
-            ? new CombinedGeometry(GeometryCombineMode.Exclude, full, new RectangleGeometry(_selection))
-            : full;
+        ShadeAround(usable ? _selection : Rect.Empty);
+        Guide.Visibility = usable || _dragging ? Visibility.Collapsed : Visibility.Visible;
 
         if (!usable)
         {
             Marquee.Visibility = Visibility.Collapsed;
-            Readout.Visibility = Visibility.Collapsed;
-            PlaceGuide();
+            Readout.Visibility = Visibility.Hidden;
             return;
         }
 
@@ -141,18 +171,38 @@ public partial class AreaPickerWindow : Window
 
         ReadoutText.Text = $"{_selection.Width:F0} x {_selection.Height:F0}";
         Readout.Visibility = Visibility.Visible;
-        Readout.UpdateLayout();
 
         // 위쪽에 자리가 없으면 사각형 안쪽으로 내려 붙인다.
-        double readoutTop = _selection.Y - Readout.ActualHeight - 8;
+        double readoutTop = _selection.Y - _readoutHeight - 8;
         Place(Readout, _selection.X, readoutTop < 0 ? _selection.Y + 8 : readoutTop);
     }
 
-    private void PlaceGuide()
+    /// <summary>비워둘 자리를 뺀 나머지를 네 장으로 덮는다. 빈 사각형을 주면 화면을 통째로 덮는다.</summary>
+    private void ShadeAround(Rect hole)
     {
-        Guide.Visibility = _dragging ? Visibility.Collapsed : Visibility.Visible;
-        Guide.UpdateLayout();
-        Place(Guide, (ActualWidth - Guide.ActualWidth) / 2, (ActualHeight - Guide.ActualHeight) / 2);
+        double width = ActualWidth;
+        double height = ActualHeight;
+
+        if (hole.IsEmpty)
+        {
+            Fill(ShadeTop, 0, 0, width, height);
+            Fill(ShadeBottom, 0, 0, 0, 0);
+            Fill(ShadeLeft, 0, 0, 0, 0);
+            Fill(ShadeRight, 0, 0, 0, 0);
+            return;
+        }
+
+        Fill(ShadeTop, 0, 0, width, hole.Top);
+        Fill(ShadeBottom, 0, hole.Bottom, width, height - hole.Bottom);
+        Fill(ShadeLeft, 0, hole.Top, hole.Left, hole.Height);
+        Fill(ShadeRight, hole.Right, hole.Top, width - hole.Right, hole.Height);
+    }
+
+    private static void Fill(Rectangle rectangle, double left, double top, double width, double height)
+    {
+        Place(rectangle, left, top);
+        rectangle.Width = Math.Max(0, width);
+        rectangle.Height = Math.Max(0, height);
     }
 
     private static void Place(UIElement element, double left, double top)

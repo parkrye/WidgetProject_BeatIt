@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -24,6 +24,12 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>이만큼 움직여야 이동 방향을 다시 따진다. 프레임마다 따지면 그림이 깜빡인다.</summary>
     private const double MoveDirectionDistance = 6;
 
+    /// <summary>
+    /// 창을 실제로 옮기는 주기. 투명 창은 옮길 때마다 화면 합성이 통째로 다시 도는데,
+    /// 걷는 속도에서는 이 정도만 옮겨도 눈에 똑같고 값은 절반이다.
+    /// </summary>
+    private const double MoveIntervalSeconds = 1.0 / 30;
+
     private readonly SettingsService _settingsService;
     private readonly HitAnimator _hitAnimator = new();
     private readonly DragStretchAnimator _dragAnimator = new();
@@ -37,10 +43,13 @@ public partial class MainWindow : Window, ISettingsPreview
     private TimeSpan _lastRenderTime;
     private FacingDirection _moveDirection = FacingDirection.Default;
     private Vector _motion;
+    private Vector _pendingStep;
+    private double _sinceMove;
     private Point _grabPoint;
     private bool _pressed;
     private bool _dragging;
     private bool _positioned;
+    private bool _dialogOpen;
 
     public MainWindow(SettingsService settingsService, AppSettings settings)
     {
@@ -96,25 +105,66 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>혼자 돌아다니는 몫만큼 창을 옮긴다. 걸을 때도 몸이 살짝 늘어난다.</summary>
     private void Walk(double delta)
     {
-        if (_pressed || _dragging)
+        if (!_wander.Enabled)
         {
-            _wander.Suspend(DragRestSeconds);
+            _pendingStep = default;
+            _sinceMove = 0;
             return;
         }
 
-        Rect area = WanderArea.Resolve(_settings.WanderArea, CustomArea(), this, Center);
-        Vector step = _wander.Update(delta, new Point(Left, Top), WanderArea.Travel(area, new Size(Width, Height)));
-        if (step == default)
+        if (Busy)
+        {
+            _wander.Suspend(DragRestSeconds);
+            _pendingStep = default;
+            _sinceMove = 0;
+            return;
+        }
+
+        // 옮기는 건 미뤄도 목적지 계산은 매 프레임 한다. 아직 안 옮긴 몫을 태워서 물어봐야
+        // 같은 자리를 두 번 걷지 않는다.
+        Point intended = new(Left + _pendingStep.X, Top + _pendingStep.Y);
+        Rect area = WanderArea.Resolve(_settings.WanderArea, CustomArea(), this, Center + _pendingStep);
+        _pendingStep += _wander.Update(delta, intended, WanderArea.Travel(area, new Size(Width, Height)));
+
+        // 쉬는 동안에도 시간을 쌓으면 빚이 남아서, 다시 걷기 시작할 때 한동안 매 프레임 옮긴다.
+        // 옮길 몫이 없으면 시계도 같이 멈춘다.
+        if (_pendingStep == default)
+        {
+            _sinceMove = 0;
+            return;
+        }
+
+        _sinceMove += delta;
+        if (_sinceMove < MoveIntervalSeconds)
         {
             return;
         }
+
+        _sinceMove = 0;
+        Vector step = _pendingStep;
+        _pendingStep = default;
 
         Left += step.X;
         Top += step.Y;
         TrackMotion(step);
         _dragAnimator.Grab(new Point(0.5, 0.35));
         _dragAnimator.Pull(step * 0.4);
+
+        // 창이 가만히 있는 커서 밑으로 걸어 들어오면 WPF 는 그걸 모른다. 직접 다시 따져야
+        // 올라온 줄 알고 멈춰 선다.
+        Mouse.Synchronize();
     }
+
+    /// <summary>
+    /// 지금 걸으면 안 되는 상황. 잡고 있거나, 설정 창이 떠 있거나, 커서가 올라와 있을 때다.
+    /// 커서 밑에서 걸어 나가면 조준한 클릭이 허공을 때린다.
+    /// </summary>
+    private bool Busy =>
+        _pressed
+        || _dragging
+        || _dialogOpen
+        || SpriteImage.IsMouseOver
+        || SpriteImage.ContextMenu?.IsOpen == true;
 
     /// <summary>
     /// 움직인 거리를 모았다가 일정 거리를 넘으면 그때 방향을 정한다.
@@ -178,25 +228,61 @@ public partial class MainWindow : Window, ISettingsPreview
 
     private async void OnSpriteMouseUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_pressed)
+        bool pressed = _pressed;
+        bool dragged = ReleaseGrab();
+
+        if (!pressed)
         {
             return;
         }
 
-        _pressed = false;
-        SpriteImage.ReleaseMouseCapture();
-
-        if (!_dragging)
+        if (!dragged)
         {
             Hit(e.GetPosition(this), Facing.FromHit(e.GetPosition(SpriteImage), SpriteImage.RenderSize));
             return;
         }
 
+        await SavePositionAsync();
+    }
+
+    /// <summary>
+    /// 캡처를 우클릭이나 다른 창에 뺏기면 여기로 온다. 누른 상태를 그대로 두면
+    /// 위젯이 커서를 따라다니거나, 눌린 줄 알고 영영 안 걷는다.
+    /// </summary>
+    private async void OnSpriteLostCapture(object sender, MouseEventArgs e)
+    {
+        // 끌던 중에 뺏겼으면 놓는 이벤트가 안 온다. 옮겨둔 자리는 여기서 저장해야 남는다.
+        if (ReleaseGrab())
+        {
+            await SavePositionAsync();
+        }
+    }
+
+    /// <summary>
+    /// 붙잡은 상태를 되돌리고 캡처를 놓는다. 끌던 중이었으면 true.
+    /// 캡처를 푸는 것 자체가 이 함수를 다시 부르지만, 그때는 이미 지워져 있어 false 를 돌려준다.
+    /// </summary>
+    private bool ReleaseGrab()
+    {
+        bool dragged = _dragging;
+
+        _pressed = false;
         _dragging = false;
         _motion = default;
+
+        if (SpriteImage.IsMouseCaptured)
+        {
+            SpriteImage.ReleaseMouseCapture();
+        }
+
+        return dragged;
+    }
+
+    private Task SavePositionAsync()
+    {
         _settings.WindowLeft = Left;
         _settings.WindowTop = Top;
-        await _settingsService.SaveAsync(_settings);
+        return _settingsService.SaveAsync(_settings);
     }
 
     private void Hit(Point where, FacingDirection direction)
@@ -211,7 +297,7 @@ public partial class MainWindow : Window, ISettingsPreview
 
     private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
-        _pressed = false;
+        ReleaseGrab();
         WanderMenuItem.IsChecked = _settings.Wander;
         TopmostMenuItem.IsChecked = _settings.Topmost;
         LockMenuItem.IsChecked = _settings.PositionLocked;
@@ -222,7 +308,20 @@ public partial class MainWindow : Window, ISettingsPreview
         AppSettings original = _settings.Clone();
         SettingsWindow dialog = new(_settings.Clone(), this) { Owner = this };
 
-        if (dialog.ShowDialog() != true)
+        // 설정 창이 떠 있는 동안은 걷지 않는다. 투명 창이 그 위를 매 프레임 지나가면
+        // 설정 창이 통째로 다시 그려져서 슬라이더까지 밀린다.
+        _dialogOpen = true;
+        bool confirmed;
+        try
+        {
+            confirmed = dialog.ShowDialog() == true;
+        }
+        finally
+        {
+            _dialogOpen = false;
+        }
+
+        if (!confirmed)
         {
             ApplySettings(original);
             return;

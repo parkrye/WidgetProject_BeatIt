@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 
 namespace BeatIt.Core;
 
@@ -19,8 +19,23 @@ public sealed class WanderController
     private double _restRemaining;
     private double _suspendRemaining;
     private bool _hasTarget;
+    private bool _enabled;
 
-    public bool Enabled { get; set; }
+    /// <summary>꺼질 때 바로 잊는다. 껐다 켜면 예전 목적지가 아니라 새 목적지를 고른다.</summary>
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (_enabled == value)
+            {
+                return;
+            }
+
+            _enabled = value;
+            Reset();
+        }
+    }
 
     public bool IsMoving { get; private set; }
 
