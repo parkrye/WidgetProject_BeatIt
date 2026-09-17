@@ -4,7 +4,7 @@
 
 ## 받아서 바로 쓰기
 
-루트에 빌드된 exe 두 개가 있다. 하나만 받으면 된다.
+[**Releases**](https://github.com/parkrye/WidgetProject_BeatIt/releases/latest) 에 exe 두 개가 붙어 있다. 하나만 받으면 된다.
 
 | 파일 | 크기 | 조건 |
 |---|---|---|
@@ -13,6 +13,8 @@
 
 기본 캐릭터와 테마는 exe 안에 들어 있고 첫 실행 때 `%AppData%\BeatIt\` 로 풀린다. 따라다닐 파일이 없다.
 
+> exe 는 저장소에 담지 않는다. 63MB 짜리가 커밋마다 히스토리에 쌓이면 소스 1MB 짜리를 받는 데 그만큼이 딸려온다.
+
 ## 직접 빌드
 
 ```bash
@@ -20,7 +22,7 @@ dotnet run --project src/BeatIt     # 개발 중 실행
 ```
 
 ```powershell
-.\publish.ps1                       # 루트에 exe 두 개를 다시 만든다
+.\publish.ps1                       # 루트에 exe 두 개를 만든다 (gitignore 에 걸려 있다)
 ```
 
 ## 조작
