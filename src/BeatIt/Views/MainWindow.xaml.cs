@@ -22,6 +22,9 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>이만큼 움직여야 이동 방향을 다시 따진다. 프레임마다 따지면 그림이 깜빡인다.</summary>
     private const double MoveDirectionDistance = 6;
 
+    /// <summary>콤보 계단이 오를 때 캐릭터 둘레로 터뜨리는 이펙트 장수.</summary>
+    private const int MilestoneBurstCount = 8;
+
     /// <summary>던질 속도를 낼 때 되돌아보는 시간. 짧으면 손 떨림이 섞이고 길면 방향이 뭉개진다.</summary>
     private const double SpeedWindowSeconds = 0.06;
 
@@ -43,6 +46,7 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>끌고 가는 손의 속도를 재는 시계. 놓는 순간 그 속도가 던지는 속도가 된다.</summary>
     private readonly Stopwatch _dragClock = new();
     private readonly ComboCounter _comboCounter;
+    private readonly ComboStyle _comboStyle = new();
     private readonly HitEffectPresenter _effects;
 
     private AppSettings _settings;
@@ -53,6 +57,13 @@ public partial class MainWindow : Window, ISettingsPreview
     private Vector _motion;
     private Vector _pendingStep;
     private double _sinceMove;
+    /// <summary>
+    /// 지금 자리를 비워둔 콤보 계단. 이게 바뀔 때만 창을 다시 잡는다.
+    /// -1 이면 콤보가 안 떠 있어서 아무것도 안 비워둔 상태다. 콤보를 안 쌓는 대부분의 시간
+    /// 동안 큰 창을 들고 있으면, 걸어다닐 때 옮기고 그리는 값이 그만큼 비싸진다.
+    /// </summary>
+    private int _comboTier = -1;
+
     private Vector _dragVelocity;
     private double _lastDragSeconds;
     private Point _grabPoint;
@@ -69,6 +80,7 @@ public partial class MainWindow : Window, ISettingsPreview
         _settings = settings;
         _comboCounter = new ComboCounter(TimeSpan.FromMilliseconds(settings.ComboTimeoutMs));
         _effects = new HitEffectPresenter(EffectLayer);
+        Combo.SetStyle(_comboStyle);
 
         SpriteImage.RenderTransform = _hitAnimator.Transform;
         DragRoot.RenderTransform = _dragAnimator.Transform;
@@ -116,6 +128,7 @@ public partial class MainWindow : Window, ISettingsPreview
         if (_comboCounter.ExpireIfTimedOut())
         {
             Combo.Hide();
+            ReserveForCombo(0);
         }
     }
 
@@ -419,9 +432,46 @@ public partial class MainWindow : Window, ISettingsPreview
         int combo = _comboCounter.Register();
         _spriteSource!.OnHit(direction);
         _hitAnimator.Hit(combo);
-        Combo.Show(combo);
         _effects.Spawn(where, SpriteImage.Width * EffectSizeRatio, combo);
         _wander.Suspend(_settings.HitRestMs / 1000.0);
+
+        // 자리를 먼저 넓히고 띄운다. 거꾸로 하면 계단이 오른 첫 프레임에 숫자가 머리를 파고든다.
+        ReserveForCombo(combo);
+        Combo.Show(combo);
+
+        if (_comboStyle.IsMilestone(combo))
+        {
+            Celebrate();
+        }
+    }
+
+    /// <summary>
+    /// 콤보 계단이 올랐다. 캐릭터 둘레로 이펙트를 한 바퀴 터뜨린다.
+    /// 숫자가 커지고 색이 바뀌는 건 콤보 표시가 알아서 하고, 여기서는 둘레만 맡는다.
+    /// </summary>
+    private void Celebrate() =>
+        _effects.Burst(
+            new Point(Width / 2, Height / 2),
+            SpriteImage.Width * EffectSizeRatio,
+            MilestoneBurstCount,
+            SpriteImage.Width * 0.55);
+
+    /// <summary>
+    /// 콤보가 자란 만큼 머리 위 자리를 넓힌다. 계단이 바뀔 때만 창을 다시 잡는다.
+    /// 최대 배율에 맞춰 늘 크게 잡아두면, 콤보를 안 쌓는 대부분의 시간 동안 화면 절반만 한
+    /// 투명 창이 떠 있게 된다. 투명 창은 클 수록 옮기고 그리는 값이 비싸다.
+    /// </summary>
+    private void ReserveForCombo(int combo)
+    {
+        // 콤보 1 은 안 띄운다. 안 띄우는 걸 자리까지 잡아두면 한 대 때릴 때마다 창이 커진다.
+        int tier = combo < 2 ? -1 : _comboStyle.TierOf(combo);
+        if (tier == _comboTier)
+        {
+            return;
+        }
+
+        _comboTier = tier;
+        ApplyLayout();
     }
 
     private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -534,7 +584,10 @@ public partial class MainWindow : Window, ISettingsPreview
         _dragAnimator.MaxStretch = next.DragStretch;
         _dragAnimator.SetStiffness(next.DragSpring);
         _effects.Enabled = next.EffectsEnabled;
-        Combo.SetSize(next.ComboSize);
+        _comboStyle.BaseSize = next.ComboSize;
+        _comboStyle.Milestone = next.ComboMilestone;
+        _comboStyle.Growth = next.ComboGrowth;
+        _comboStyle.MaxScale = next.ComboMaxScale;
         Combo.SetOffset(next.ComboOffsetX, next.ComboOffsetY);
         Topmost = next.Topmost;
         SpriteImage.Source = _spriteSource.Current;
@@ -580,8 +633,18 @@ public partial class MainWindow : Window, ISettingsPreview
         SpriteImage.Width = spriteWidth;
         SpriteImage.Height = spriteHeight;
 
-        double width = spriteWidth + (Math.Max(MinPadding, spriteWidth * PaddingRatio) + Math.Abs(_settings.ComboOffsetX)) * 2;
-        double height = spriteHeight + (Math.Max(MinPadding, spriteHeight * PaddingRatio) + Math.Abs(_settings.ComboOffsetY)) * 2;
+        // 콤보는 캐릭터 머리 위에 밑변을 붙이고 위로 자란다. 그만큼을 위 여백으로 확보해야
+        // 숫자가 안 잘리고, 확보한 여백이 곧 콤보가 앉을 자리가 된다.
+        double comboHeight = _comboTier < 0 ? 0 : _comboStyle.ReserveFor(_comboTier);
+        double padding = Math.Max(
+            Math.Max(MinPadding, spriteHeight * PaddingRatio),
+            comboHeight + _settings.ComboGap);
+
+        double width = spriteWidth + ((Math.Max(MinPadding, spriteWidth * PaddingRatio) + Math.Abs(_settings.ComboOffsetX)) * 2);
+        double height = spriteHeight + ((padding + Math.Abs(_settings.ComboOffsetY)) * 2);
+
+        // 위 여백에서 틈만큼을 뺀 자리가 콤보의 바닥이다. 창이 세로로 대칭이라 위 여백은 (창 - 그림) / 2 다.
+        Combo.Height = Math.Max(0, ((height - spriteHeight) / 2) - _settings.ComboGap);
 
         // 크기를 실시간으로 바꿀 때 가운데가 제자리에 있어야 커지고 작아지는 게 자연스럽다.
         if (_positioned)

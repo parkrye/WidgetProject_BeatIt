@@ -50,9 +50,9 @@
         <!-- 타격 이펙트가 잠깐 떴다 사라지는 층. -->
         <Canvas x:Name="EffectLayer" IsHitTestVisible="False" />
 
+        <!-- 세로 자리는 창이 잡아준다. 높이를 쥐여주면 그 바닥에 밑변을 붙이고 위로 자란다. -->
         <controls:ComboDisplay x:Name="Combo"
                                HorizontalAlignment="Center"
-                               VerticalAlignment="Top"
-                               Margin="0,4,0,0" />
+                               VerticalAlignment="Top" />
     </Grid>
 </Window>
