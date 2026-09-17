@@ -35,6 +35,9 @@ public interface ISpriteSource : IDisposable
     /// <summary>소리 크기(0~1)와 음소거.</summary>
     void SetVolume(double volume, bool muted);
 
+    /// <summary>맞은 그림을 붙들고 있는 시간. 지나면 idle 로 돌아간다.</summary>
+    void SetBeatHold(double seconds);
+
     /// <summary>쥐고 있던 소리 파일을 놓는다. 캐릭터 폴더를 고치는 동안 잠겨 있으면 안 된다.</summary>
     void ReleaseAudio();
 }

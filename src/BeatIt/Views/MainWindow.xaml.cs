@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -15,14 +16,17 @@ public partial class MainWindow : Window, ISettingsPreview
     private const double DragThresholdPixels = 5;
     private const double PaddingRatio = 0.45;
     private const double MinPadding = 70;
-    private const double HitRestSeconds = 1.6;
-    private const double DragRestSeconds = 0.8;
-
     /// <summary>이펙트가 캐릭터를 덮지 않도록 가로 길이의 절반 이하로 잡는다.</summary>
     private const double EffectSizeRatio = 0.45;
 
     /// <summary>이만큼 움직여야 이동 방향을 다시 따진다. 프레임마다 따지면 그림이 깜빡인다.</summary>
     private const double MoveDirectionDistance = 6;
+
+    /// <summary>던질 속도를 낼 때 되돌아보는 시간. 짧으면 손 떨림이 섞이고 길면 방향이 뭉개진다.</summary>
+    private const double SpeedWindowSeconds = 0.06;
+
+    /// <summary>놓기 전에 이만큼 손이 멈춰 있었으면 던질 뜻이 없는 것으로 본다.</summary>
+    private const double SettleSeconds = 0.12;
 
     /// <summary>
     /// 창을 실제로 옮기는 주기. 투명 창은 옮길 때마다 화면 합성이 통째로 다시 도는데,
@@ -34,6 +38,10 @@ public partial class MainWindow : Window, ISettingsPreview
     private readonly HitAnimator _hitAnimator = new();
     private readonly DragStretchAnimator _dragAnimator = new();
     private readonly WanderController _wander = new();
+    private readonly ThrowMotion _throw = new();
+
+    /// <summary>끌고 가는 손의 속도를 재는 시계. 놓는 순간 그 속도가 던지는 속도가 된다.</summary>
+    private readonly Stopwatch _dragClock = new();
     private readonly ComboCounter _comboCounter;
     private readonly HitEffectPresenter _effects;
 
@@ -45,6 +53,8 @@ public partial class MainWindow : Window, ISettingsPreview
     private Vector _motion;
     private Vector _pendingStep;
     private double _sinceMove;
+    private Vector _dragVelocity;
+    private double _lastDragSeconds;
     private Point _grabPoint;
     private bool _pressed;
     private bool _dragging;
@@ -95,10 +105,11 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
+        Fly(delta);
         Walk(delta);
         _hitAnimator.Update(delta);
         _dragAnimator.Update(delta);
-        SpriteState state = _dragging || _wander.IsMoving ? SpriteState.Moving : SpriteState.Idle;
+        SpriteState state = _dragging || _wander.IsMoving || _throw.IsFlying ? SpriteState.Moving : SpriteState.Idle;
         _spriteSource!.Update(delta, state, _moveDirection);
         DragRoot.RenderTransformOrigin = _dragAnimator.Anchor;
 
@@ -120,7 +131,7 @@ public partial class MainWindow : Window, ISettingsPreview
 
         if (Busy)
         {
-            _wander.Suspend(DragRestSeconds);
+            _wander.Suspend(_settings.DragRestMs / 1000.0);
             _pendingStep = default;
             _sinceMove = 0;
             return;
@@ -162,12 +173,76 @@ public partial class MainWindow : Window, ISettingsPreview
     }
 
     /// <summary>
+    /// 던져진 몫만큼 창을 옮긴다. 걷는 것과 달리 프레임을 건너뛰지 않는다.
+    /// 날아가는 건 순식간이라 30fps 로 줄이면 뚝뚝 끊겨 보이고, 어차피 곧 멈춘다.
+    /// </summary>
+    private void Fly(double delta)
+    {
+        if (!_throw.IsFlying)
+        {
+            return;
+        }
+
+        Rect area = WanderArea.Resolve(_settings.WanderArea, CustomArea(), this, Center);
+        Vector step = _throw.Update(delta, new Point(Left, Top), WanderArea.Travel(area, new Size(Width, Height)), out Bump bump);
+
+        Left += step.X;
+        Top += step.Y;
+        TrackMotion(step);
+        _dragAnimator.Grab(new Point(0.5, 0.5));
+        _dragAnimator.Pull(step * 0.25);
+
+        if (bump.Happened)
+        {
+            Strike(bump);
+        }
+
+        if (!_throw.IsFlying)
+        {
+            // 멈춘 자리가 다음에 켤 때의 자리다. 나는 동안 매 프레임 적을 일은 아니다.
+            _ = SavePositionAsync();
+        }
+
+        // 창이 가만히 있는 커서 밑으로 날아 들어왔을 수 있다. 직접 다시 따져야 올라온 줄 안다.
+        Mouse.Synchronize();
+    }
+
+    /// <summary>
+    /// 벽에 박았다. 맞은 것과 같은 그림·소리·이펙트를 내되 <b>콤보는 안 센다.</b>
+    /// 스스로 튕긴 것을 때린 걸로 쳐주면 한 번 던져놓고 콤보를 쌓을 수 있다.
+    /// </summary>
+    private void Strike(Bump bump)
+    {
+        _spriteSource!.OnHit(bump.Side);
+        _hitAnimator.Bump(bump.Strength);
+        _effects.Spawn(EdgeToward(bump.Side), SpriteImage.Width * EffectSizeRatio, 1);
+    }
+
+    /// <summary>벽에 닿은 쪽의 캐릭터 가장자리. 이펙트가 부딪힌 자리에서 튀어야 한다.</summary>
+    private Point EdgeToward(FacingDirection side)
+    {
+        Point center = new(Width / 2, Height / 2);
+        double halfWidth = SpriteImage.Width / 2;
+        double halfHeight = SpriteImage.Height / 2;
+
+        return side switch
+        {
+            FacingDirection.Left => new Point(center.X - halfWidth, center.Y),
+            FacingDirection.Right => new Point(center.X + halfWidth, center.Y),
+            FacingDirection.Up => new Point(center.X, center.Y - halfHeight),
+            FacingDirection.Down => new Point(center.X, center.Y + halfHeight),
+            _ => center,
+        };
+    }
+
+    /// <summary>
     /// 지금 걸으면 안 되는 상황. 잡고 있거나, 설정 창이 떠 있거나, 커서가 올라와 있을 때다.
     /// 커서 밑에서 걸어 나가면 조준한 클릭이 허공을 때린다.
     /// </summary>
     private bool Busy =>
         _pressed
         || _dragging
+        || _throw.IsFlying
         || _dialogOpen
         || SpriteImage.IsMouseOver
         || SpriteImage.ContextMenu?.IsOpen == true;
@@ -199,9 +274,15 @@ public partial class MainWindow : Window, ISettingsPreview
 
     private void OnSpriteMouseDown(object sender, MouseButtonEventArgs e)
     {
+        // 날아가는 걸 공중에서 낚아챌 수 있어야 한다. 잡았는데 계속 날면 손에서 빠져나간다.
+        _throw.Stop();
+
         _pressed = true;
         _dragging = false;
         _motion = default;
+        _dragVelocity = default;
+        _lastDragSeconds = 0;
+        _dragClock.Restart();
         _grabPoint = e.GetPosition(this);
         SpriteImage.CaptureMouse();
     }
@@ -229,8 +310,35 @@ public partial class MainWindow : Window, ISettingsPreview
         Left += delta.X;
         Top += delta.Y;
         TrackMotion(delta);
+        TrackSpeed(delta);
         _dragAnimator.Pull(delta);
     }
+
+    /// <summary>
+    /// 끌고 가는 손의 속도를 모은다. 한 프레임 값을 그대로 쓰면 마지막 한 번이 유난히 짧거나
+    /// 길게 잡혔을 때 엉뚱한 속도로 날아가서, 최근 것에 무게를 싣는 지수 평균으로 다듬는다.
+    /// </summary>
+    private void TrackSpeed(Vector delta)
+    {
+        double now = _dragClock.Elapsed.TotalSeconds;
+        double elapsed = now - _lastDragSeconds;
+        _lastDragSeconds = now;
+
+        if (elapsed < 0.0005)
+        {
+            return;
+        }
+
+        double weight = Math.Clamp(elapsed / SpeedWindowSeconds, 0, 1);
+        _dragVelocity = (_dragVelocity * (1 - weight)) + (delta / elapsed * weight);
+    }
+
+    /// <summary>
+    /// 놓을 때 쓸 속도. 놓기 직전에 손을 멈췄으면 던질 뜻이 없는 것이라 0 으로 본다.
+    /// 이게 없으면 끌어다 조심히 내려놓아도 직전에 모아둔 속도로 날아가 버린다.
+    /// </summary>
+    private Vector ReleaseVelocity() =>
+        _dragClock.Elapsed.TotalSeconds - _lastDragSeconds > SettleSeconds ? default : _dragVelocity;
 
     private async void OnSpriteMouseUp(object sender, MouseButtonEventArgs e)
     {
@@ -248,6 +356,13 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
+        _throw.Launch(ReleaseVelocity());
+        if (_throw.IsFlying)
+        {
+            // 아직 자리를 안 잡았다. 멈춘 자리를 저장해야 다음에 켤 때 거기 뜬다.
+            return;
+        }
+
         await SavePositionAsync();
     }
 
@@ -258,10 +373,18 @@ public partial class MainWindow : Window, ISettingsPreview
     private async void OnSpriteLostCapture(object sender, MouseEventArgs e)
     {
         // 끌던 중에 뺏겼으면 놓는 이벤트가 안 온다. 옮겨둔 자리는 여기서 저장해야 남는다.
-        if (ReleaseGrab())
+        if (!ReleaseGrab())
         {
-            await SavePositionAsync();
+            return;
         }
+
+        _throw.Launch(ReleaseVelocity());
+        if (_throw.IsFlying)
+        {
+            return;
+        }
+
+        await SavePositionAsync();
     }
 
     /// <summary>
@@ -298,7 +421,7 @@ public partial class MainWindow : Window, ISettingsPreview
         _hitAnimator.Hit(combo);
         Combo.Show(combo);
         _effects.Spawn(where, SpriteImage.Width * EffectSizeRatio, combo);
-        _wander.Suspend(HitRestSeconds);
+        _wander.Suspend(_settings.HitRestMs / 1000.0);
     }
 
     private void OnContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -385,8 +508,31 @@ public partial class MainWindow : Window, ISettingsPreview
         _spriteSource!.SetIdleInterval(next.IdleMinMs / 1000.0, next.IdleMaxMs / 1000.0);
         _spriteSource.SetIdleSoundInterval(next.IdleSoundMinMs / 1000.0, next.IdleSoundMaxMs / 1000.0);
         _spriteSource.SetVolume(next.SoundVolume, next.SoundMuted);
+        _spriteSource.SetBeatHold(next.BeatHoldMs / 1000.0);
         _comboCounter.Timeout = TimeSpan.FromMilliseconds(next.ComboTimeoutMs);
         _wander.Enabled = next.Wander && !next.PositionLocked;
+        _wander.SetPace(
+            next.WanderSpeedMin,
+            next.WanderSpeedMax,
+            next.WanderRestMinMs / 1000.0,
+            next.WanderRestMaxMs / 1000.0);
+        _hitAnimator.Power = next.HitPower;
+        _hitAnimator.Tilt = next.HitTilt;
+        _hitAnimator.ComboGain = next.HitComboGain;
+        _throw.Enabled = next.ThrowEnabled;
+        _throw.SpeedScale = next.ThrowSpeedScale;
+        _throw.MaxSpeed = next.ThrowMaxSpeed;
+        _throw.Bounce = next.ThrowBounce;
+        _throw.Friction = next.ThrowFriction;
+        _throw.StopSpeed = next.ThrowStopSpeed;
+        if (!next.ThrowEnabled)
+        {
+            _throw.Stop();
+        }
+
+        _dragAnimator.Lag = next.DragLag;
+        _dragAnimator.MaxStretch = next.DragStretch;
+        _dragAnimator.SetStiffness(next.DragSpring);
         _effects.Enabled = next.EffectsEnabled;
         Combo.SetSize(next.ComboSize);
         Combo.SetOffset(next.ComboOffsetX, next.ComboOffsetY);

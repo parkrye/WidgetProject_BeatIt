@@ -9,11 +9,12 @@ namespace BeatIt.Core;
 /// </summary>
 public sealed class DragStretchAnimator
 {
-    private const double LagPerPixel = 0.85;
     private const double MaxLag = 120;
     private const double StretchPerPixel = 0.0055;
-    private const double MaxStretch = 0.55;
     private const double TrailFactor = 0.45;
+
+    /// <summary>스프링을 약하게 만들어도 출렁임이 같은 꼴로 남도록 감쇠를 세기에 맞춰 따라 올린다.</summary>
+    private const double DampingRatio = 0.975;
 
     private readonly RotateTransform _alignBack = new(0);
     private readonly ScaleTransform _stretch = new(1, 1);
@@ -21,8 +22,9 @@ public sealed class DragStretchAnimator
     private readonly TranslateTransform _trail = new(0, 0);
     private readonly TransformGroup _transform;
 
-    private Spring _lagX = new(stiffness: 95, damping: 9.5);
-    private Spring _lagY = new(stiffness: 95, damping: 9.5);
+    private Spring _lagX = NewSpring(95);
+    private Spring _lagY = NewSpring(95);
+    private double _stiffness = 95;
 
     public DragStretchAnimator()
     {
@@ -36,6 +38,32 @@ public sealed class DragStretchAnimator
 
     public Transform Transform => _transform;
 
+    /// <summary>끌 때 몸통이 뒤처지는 양. 0 이면 통째로 따라온다.</summary>
+    public double Lag { get; set; } = 0.85;
+
+    /// <summary>늘어나는 한계(0~1). 0 이면 안 늘어난다.</summary>
+    public double MaxStretch { get; set; } = 0.55;
+
+    /// <summary>
+    /// 놓았을 때 제자리로 돌아오는 스프링의 세기. 값이 그대로면 아무것도 안 한다.
+    /// 스프링은 struct 라 갈아 끼우면 지금 출렁이던 게 끊기기 때문이다.
+    /// </summary>
+    public void SetStiffness(double stiffness)
+    {
+        double next = Math.Max(1, stiffness);
+        if (Math.Abs(next - _stiffness) < 0.001)
+        {
+            return;
+        }
+
+        _stiffness = next;
+        _lagX = NewSpring(next);
+        _lagY = NewSpring(next);
+    }
+
+    private static Spring NewSpring(double stiffness) =>
+        new(stiffness, DampingRatio * Math.Sqrt(stiffness));
+
     /// <summary>붙잡은 지점(0~1 정규화). 이 점을 기준으로 늘어난다.</summary>
     public Point Anchor { get; private set; } = new(0.5, 0.5);
 
@@ -45,8 +73,8 @@ public sealed class DragStretchAnimator
     /// <summary>창이 <paramref name="delta"/> 만큼 움직였다. 몸통은 그만큼 뒤로 밀린다.</summary>
     public void Pull(Vector delta)
     {
-        _lagX.Displace(Math.Clamp(-delta.X * LagPerPixel, -MaxLag, MaxLag));
-        _lagY.Displace(Math.Clamp(-delta.Y * LagPerPixel, -MaxLag, MaxLag));
+        _lagX.Displace(Math.Clamp(-delta.X * Lag, -MaxLag, MaxLag));
+        _lagY.Displace(Math.Clamp(-delta.Y * Lag, -MaxLag, MaxLag));
     }
 
     public void Update(double deltaSeconds)
