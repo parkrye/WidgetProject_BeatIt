@@ -73,10 +73,14 @@ public partial class MainWindow : Window, ISettingsPreview
     private bool _dialogOpen;
 
     /// <summary>
-    /// 날아가는 중에 커서에 닿으면 잡아도 되는 상태. 뿌린 손은 놓은 자리에 그대로 있어서
-    /// 날기 시작할 때는 늘 커서 밑이다. 한 번 커서를 벗어나야 켜진다.
+    /// 커서에 닿은 걸 한 번 처리해도 되는 상태. 닿아 있는 내내 처리하면 커서를 얹어두는
+    /// 것만으로 콤보가 저 혼자 쌓인다. 한 번 커서를 벗어나야 다시 켜진다.
+    /// 뿌린 손은 놓은 자리에 그대로 있어서 날기 시작할 때는 늘 커서 밑이기도 하다.
     /// </summary>
     private bool _catchArmed;
+
+    /// <summary>이번 프레임에 커서가 닿아 있는 캐릭터 안 좌표. 안 닿았으면 null.</summary>
+    private Point? _cursorHit;
 
     public MainWindow(SettingsService settingsService, AppSettings settings)
     {
@@ -132,6 +136,9 @@ public partial class MainWindow : Window, ISettingsPreview
         }
 
         Fly(delta);
+
+        // 날아간 자리에서 커서와 닿았는지 먼저 본다. 닿았으면 걷지도 않아야 한다.
+        TouchByCursor();
         Walk(delta);
         _hitAnimator.Update(delta);
         _dragAnimator.Update(delta);
@@ -193,10 +200,6 @@ public partial class MainWindow : Window, ISettingsPreview
         TrackMotion(step);
         _dragAnimator.Grab(new Point(0.5, 0.35));
         _dragAnimator.Pull(step * 0.4);
-
-        // 창이 가만히 있는 커서 밑으로 걸어 들어오면 WPF 는 그걸 모른다. 직접 다시 따져야
-        // 올라온 줄 알고 멈춰 선다.
-        Mouse.Synchronize();
     }
 
     /// <summary>
@@ -224,12 +227,6 @@ public partial class MainWindow : Window, ISettingsPreview
             Strike(bump);
         }
 
-        CatchByCursor();
-
-        // 커서에 닿았는지는 CatchByCursor 가 직접 따진다. 이건 멈춘 뒤 이어 걷는 쪽이
-        // 커서가 올라와 있는 걸 알아보라고 맞춰두는 것이다.
-        Mouse.Synchronize();
-
         if (!_throw.IsFlying)
         {
             // 멈춘 자리가 다음에 켤 때의 자리다. 나는 동안 매 프레임 적을 일은 아니다.
@@ -238,21 +235,32 @@ public partial class MainWindow : Window, ISettingsPreview
     }
 
     /// <summary>
-    /// 날아가다 커서에 닿았다. 기본은 그 자리에 서는 것이다. 걷다가 커서를 만나면 멈춰 서는
-    /// 것과 같은 이유로, 커서 밑을 지나가 버리면 조준한 클릭이 허공을 때린다.
-    /// 켜두면 서는 대신 커서를 벽처럼 여겨 튕겨 나간다.
-    /// 뿌린 손은 놓은 자리에 그대로 있어서 날기 시작할 때는 커서 밑에 있다. 한 번 커서를
-    /// 벗어나기 전까지는 안 잡는다. 안 그러면 뿌리는 족족 그 자리에 선다.
+    /// 커서에 닿았는지 보고, 닿았으면 설정대로 처리한다. 매 프레임 한 번 묻고 그 답을
+    /// <see cref="_cursorHit"/> 에 남겨서, 걸어도 되는지 따지는 쪽도 같은 답을 본다.
     ///
     /// 닿았는지는 <see cref="CursorProbe"/> 에 묻는다. 커서는 가만히 있고 창만 움직이는
     /// 동안에는 <c>IsMouseOver</c> 가 갱신되지 않아서, 그걸 믿으면 벗어난 줄도 닿은 줄도 모른다.
+    ///
+    /// 서는 쪽(기본)은 날아가던 것만 세운다. 걷다가 커서를 만나면 멈춰 서는 것과 같은
+    /// 이유로, 커서 밑을 지나가 버리면 조준한 클릭이 허공을 때린다.
+    /// 커서를 벽으로 쓰는 쪽은 날아오면 튕겨내고, 날지 않을 때 닿으면 한 대 때린 것으로 친다.
+    /// 커서가 벽이면 스쳐도 맞는 게 앞뒤가 맞는다.
     /// </summary>
-    private void CatchByCursor()
+    private void TouchByCursor()
     {
-        Point? where = CursorProbe.HitPoint(SpriteImage);
-        if (where is null)
+        _cursorHit = CursorProbe.HitPoint(SpriteImage);
+        if (_cursorHit is not { } where)
         {
             _catchArmed = true;
+            return;
+        }
+
+        // 잡고 있는 동안은 손이 위에 있는 게 당연하다. 끌려오다 몸통이 뒤처져 커서를
+        // 벗어났다 다시 들어오는 것까지 때린 걸로 치면, 끌기만 해도 콤보가 쌓인다.
+        // 놓고 나서도 한 번 비켰다 와야 다음 대가 들어간다.
+        if (_pressed || _dialogOpen)
+        {
+            _catchArmed = false;
             return;
         }
 
@@ -267,7 +275,23 @@ public partial class MainWindow : Window, ISettingsPreview
             return;
         }
 
-        BounceOffCursor(where.Value);
+        if (_throw.IsFlying)
+        {
+            BounceOffCursor(where);
+            return;
+        }
+
+        HitByCursor(where);
+    }
+
+    /// <summary>
+    /// 날지 않고 있는데 커서가 닿았다. 클릭과 똑같이 한 대 먹인다. 닿은 자리를 그대로 넘겨서
+    /// 그쪽 <c>beat</c> 그림이 뜨고 이펙트도 거기서 튄다.
+    /// </summary>
+    private void HitByCursor(Point where)
+    {
+        _catchArmed = false;
+        Hit(SpriteImage.TranslatePoint(where, this), Facing.FromHit(where, SpriteImage.RenderSize));
     }
 
     /// <summary>
@@ -336,13 +360,14 @@ public partial class MainWindow : Window, ISettingsPreview
     /// <summary>
     /// 지금 걸으면 안 되는 상황. 잡고 있거나, 설정 창이 떠 있거나, 커서가 올라와 있을 때다.
     /// 커서 밑에서 걸어 나가면 조준한 클릭이 허공을 때린다.
+    /// 커서가 올라와 있는지는 <see cref="TouchByCursor"/> 가 이번 프레임에 물어둔 답을 쓴다.
     /// </summary>
     private bool Busy =>
         _pressed
         || _dragging
         || _throw.IsFlying
         || _dialogOpen
-        || SpriteImage.IsMouseOver
+        || _cursorHit is not null
         || SpriteImage.ContextMenu?.IsOpen == true;
 
     /// <summary>
